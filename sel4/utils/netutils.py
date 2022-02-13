@@ -1,7 +1,7 @@
-from ipaddress import ip_address
+from ipaddress import ip_address, IPv4Address, IPv6Address
 
 
-def current_ip_address() -> ip_address:
+def current_ip_address() -> IPv6Address | IPv4Address:
     """
     Gets the current public ip address
     :return: the current public ip address as string

@@ -13,8 +13,10 @@ from typing import (
 import urllib3
 import webdrivermanager
 from loguru import logger
+from pytest import StashKey, Config
 from sel4.conf import settings
 from ...utils.regex_helper import _lazy_re_compile
+from ..runtime import runtime_store
 
 if TYPE_CHECKING:
     from webdrivermanager import WebDriverManagerBase
@@ -190,8 +192,9 @@ class ChromeDriverDownloader(DriverDownloaderBase):
 
         do_install = True
         executable = self.extract_folder.joinpath(self.driver_name)
-        from sel4.core import runtime
-        runtime.local_chromedriver = executable
+        executable_key = StashKey[pathlib.Path]
+        runtime_store[executable_key] = executable
+
         if executable.exists() and executable.is_symlink():
             # -- determine if a new webdriver installation is required
             self.setup_logger.info('Validating current version of: {}', self.driver_name)

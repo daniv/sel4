@@ -99,22 +99,31 @@
     - pytest_enter_pdb: Called upon pdb.set_trace().
 """
 import os
+import pathlib
+import re
+import sys
 from collections import defaultdict
-from typing import TYPE_CHECKING, List
-
-import pytest
+from typing import TYPE_CHECKING, List, Sequence, Optional, cast
+from pytest import (
+    StashKey,
+    hookimpl,
+    fixture
+)
 from loguru import logger
 from rich import get_console
 
 from sel4.contrib.argparse import argtypes
+from sel4.core.exceptions import ImproperlyConfigured
+from sel4.core.runtime import runtime_store
+from sel4.core.dashboard import Dashboard, TestId
 
 pytest_plugins = ["pytester"]
 
 
 if TYPE_CHECKING:
-    from _pytest.config import Config
-    from _pytest.config import PytestPluginManager
-    from _pytest.config.argparsing import Parser
+    from pytest import Config
+    from pytest import PytestPluginManager
+    from pytest import Parser
     from _pytest.config import _PluggyPlugin
 
 
@@ -146,7 +155,7 @@ def pytest_addhooks(pluginmanager: "PytestPluginManager") -> None:
 
 # region pytest_addoption(parser, pluginmanager)
 
-@pytest.hookimpl
+@hookimpl
 def pytest_addoption(parser: 'Parser', pluginmanager: 'PytestPluginManager') -> None:
     """
     Register argparse-style options and ini-style config values, called once at the beginning of a test run.
@@ -164,6 +173,7 @@ def pytest_addoption(parser: 'Parser', pluginmanager: 'PytestPluginManager') -> 
             --timeout-multiplier  (Multiplies the default timeout values.)
             --demo  (Slow down and visually see test actions as they occur.)
             --demo-sleep SECONDS  (Set the wait time after Demo Mode actions.)
+            --dashboard  (Enable the Dashboard. Saved at: dashboard.html)
     """
     if 'PYTEST_PLUGINS' in os.environ:
         logger.bind(
@@ -263,12 +273,43 @@ def pytest_addoption(parser: 'Parser', pluginmanager: 'PytestPluginManager') -> 
     )
     # endregion --time-limit
 
-    parser.addini(
-        name='used_packs',
-        help='Report used packages',
-        type='linelist',
-        default=[('PYTEST_VERSION', pytest.__version__)]
+    # region --dashboard
+    parser.addoption(
+        "--dashboard",
+        action="store_true",
+        dest="dashboard",
+        default=False,
+        help="""Using this enables the framework Dashboard.
+                   To access the framework Dashboard interface,
+                   open the dashboard.html file located in the same
+                   folder that the pytest command was run from.""",
     )
+    # endregion --dashboard
+
+    sys_argv = sys.argv
+    # Dashboard Mode does not support tests using forked subprocesses.
+    if "--forked" in sys_argv and "--dashboard" in sys_argv:
+        raise ImproperlyConfigured(
+            "\n\n  Dashboard Mode does NOT support forked subprocesses!"
+            '\n  (*** DO NOT combine "--forked" with "--dashboard"! ***)\n'
+        )
+
+    # Reuse-Session Mode does not support tests using forked subprocesses.
+    if "--forked" in sys_argv and (
+        "--rs" in sys_argv or "--reuse-session" in sys_argv
+    ):
+        raise ImproperlyConfigured(
+            "\n\n  Reuse-Session Mode does NOT support forked subprocesses!"
+            '\n  (DO NOT combine "--forked" with "--rs"/"--reuse-session"!)\n'
+        )
+
+
+    # parser.addini(
+    #     name='used_packs',
+    #     help='Report used packages',
+    #     type='linelist',
+    #     default=[('PYTEST_VERSION', pytest.__version__)]
+    # )
 
 
 # endregion pytest_addoption(parser, pluginmanager)
@@ -276,7 +317,7 @@ def pytest_addoption(parser: 'Parser', pluginmanager: 'PytestPluginManager') -> 
 
 # region pytest_configure(config)
 
-@pytest.hookimpl
+@hookimpl
 def pytest_configure(config: 'Config') -> None:
     """
     Allow plugins and conftest files to perform initial configuration.
@@ -285,9 +326,19 @@ def pytest_configure(config: 'Config') -> None:
 
     :param config: The pytest Config object instance
     """
-    from sel4.core import runtime
-    runtime.pytestconfig = config
     config_logger = logger.bind(task="config".rjust(10, ' '))
+
+    config_logger.trace("Storing stash key for pytestconfig")
+    from pytest import Config
+    pytestconfig = StashKey[Config]()
+    runtime_store[pytestconfig] = config
+    dashboard = StashKey[bool]()
+    runtime_store[dashboard] = config.getoption("dashboard", False)
+    dashboard_initialized = StashKey[bool]()
+    runtime_store[dashboard_initialized] = False
+    has_exception = StashKey[bool]()
+    runtime_store[has_exception] = False
+
     config_logger.info('Registering "DirectoryManagerPlugin" plugin"')
     from sel4.core.plugins.directory_manager import DirectoryManagerPlugin
     plugin = DirectoryManagerPlugin(config)
@@ -302,42 +353,8 @@ def pytest_configure(config: 'Config') -> None:
     config.pluginmanager.unregister(plugin)
     del plugin
 
-    def init_metadata():
-        import platform
-        import py
-        import pluggy
-        import httpx
-        import selenium
-        from sel4.utils.gitutils import get_git_changeset
-        from sel4.utils.envutils import env
-        from sel4.utils.netutils import current_ip_address
-        meta = {
-            "env": {
-                "PYTESTPATH": os.environ.get("PYTESTPATH"),
-                "PROJECT_ROOT": os.environ.get("PROJECT_ROOT"),
-                "KIRU_SETTINGS_MODULE": os.environ.get("KIRU_SETTINGS_MODULE"),
-            },
-            "git change-set": get_git_changeset(),
-            "python": platform.python_version(),
-            "platform": platform.platform(),
-            "ip_address": str(current_ip_address()),
-            "username": env("LOG_NAME", str, "N/A"),
-            "testing environment": config.getini("environment"),
-            "packages": {
-                "pytest": pytest.__version__,
-                "py": py.__version__,
-                "pluggy": pluggy.__version__,
-                "selenium": selenium.__version__,
-                "httpx": httpx.__version__,
-            },
-        }
-        # -- prints the introduction table
-        from tests import print_intro_table
-        print_intro_table(meta)
-        return meta
-
-    import json
-    metadata = init_metadata()
+    from sel4.contrib.pytest.utils import collect_metadata
+    metadata = collect_metadata(config)
     # metadata.update({k: v for k, v in config.getoption("metadata")})
     # metadata.update(json.loads(config.getoption("metadata_from_json")))
     plugins = defaultdict(int)
@@ -346,8 +363,18 @@ def pytest_configure(config: 'Config') -> None:
         if name.startswith("pytest-"):
             name = name[7:]
         plugins[name] = version
-    metadata["plugins"] = plugins
-    setattr(config, "_metadata", metadata)
+    metadata.plugins = plugins
+
+    from sel4.contrib.pytest.utils.metadata import Metadata
+    metadata_key = StashKey[Metadata]
+    runtime_store[metadata_key] = metadata
+
+    if not hasattr(config, "workerinput"):
+        # prevent opening htmlpath on worker nodes (xdist)
+        from sel4.core.plugins.reporter import HtmlReporter
+        reporter = HtmlReporter(config)
+        config_logger.debug("Registering HtmlReporter plugin")
+        config.pluginmanager.register(reporter, HtmlReporter.name)
 
     # assert_plugin = AssertionPlugin(config)
     # config.pluginmanager.register(assert_plugin, AssertionPlugin.name)
@@ -365,18 +392,15 @@ def pytest_configure(config: 'Config') -> None:
     thread.start()
 
     # -- registering markers
-    config_logger.debug('Registering the following markers:  ["unittest", "mongo", "testcase"]')
+    config_logger.debug('Registering the following markers:  ["unittest", "testcase"]')
     markers_ini = config.getini('markers')
     if not list(filter(lambda x: x.startswith('unittest'), markers_ini)):
         config.addinivalue_line('markers', 'unittest: internal unit-tests for this framework')
-    if not list(filter(lambda x: x.startswith('mongo'), markers_ini)):
-        config.addinivalue_line('markers', 'mongo: mongo procedures flags for parameterized and dependency tests')
     if not list(filter(lambda x: x.startswith('testcase'), markers_ini)):
         config.addinivalue_line('markers', 'testcase: connection to zephyr scale test case id')
 
 
 # endregion pytest_configure(config)
-
 
 
 # region pytest_plugin_registered(plugin, manager)
@@ -414,7 +438,7 @@ def pytest_plugin_registered(plugin: "_PluggyPlugin", manager: "PytestPluginMana
 # region pytest_sessionstart(session)
 
 if TYPE_CHECKING:
-    from _pytest.main import Session
+    from pytest import Session
 
 
 _MARKDOWN = """
@@ -423,14 +447,13 @@ PYTEST SESSION STARTED
 """
 
 
-@pytest.hookimpl(trylast=True)
+@hookimpl(trylast=True)
 def pytest_sessionstart(session: 'Session'):
-    c = session.config.cache
     from rich.markdown import Markdown
     md = Markdown(_MARKDOWN)
     get_console().print(md, style='bright_blue')
     from sel4.utils.log import setup_session_logger
-    setup_session_logger()
+    # setup_session_logger()
     logger.info("Successfully setup logging configuration for session")
 
 # endregion sessionstart
@@ -500,11 +523,96 @@ def after_hook(outcome, hook_name: str, hook_impls: List, kwargs: dict):
 # endregion PYTEST INITIALIZATION HOOK IMPLEMENTATIONS
 
 
+########################################################################################################################
+# PYTEST COLLECTION HOOK IMPLEMENTATIONS
+########################################################################################################################
+
+# region PYTEST INITIALIZATION HOOK IMPLEMENTATIONS
+
+if TYPE_CHECKING:
+    from pytest import Item, Collector
+    from pytest import Function
+
+
+# region pytest_pyfunc_call(pyfuncitem)
+
+@hookimpl(hookwrapper=True)
+def pytest_pyfunc_call(pyfuncitem: "Function") -> Optional[object]:
+    do_something_before_next_hook_executes()
+    outcome = yield
+    # outcome.excinfo may be None or a (cls, val, tb) tuple
+    res = outcome.get_result()  # will raise if outcome was exception
+    post_process_result(res)
+    outcome.force_result(new_res)
+
+# endregion pytest_pyfunc_call(pyfuncitem)
+
+
+# region pytest_collectstart(collector)
+
+def pytest_collectstart(collector: "Collector") -> None:
+    collect_logger = logger.bind(task="collect".rjust(10, ' '))
+    collect_logger.trace("Collecting tests on {}", collector.name)
+    collect_logger.debug("Collecting tests on path: {}", str(collector.path))
+    collector.session._collected = Dashboard()
+
+# endregion pytest_collectstart(collector)
+
+
+# region pytest_item_collected(item)
+
+def pytest_itemcollected(item: "Item"):
+    from sel4.core import runtime
+
+    def get_test_ids():
+        t_id = item.nodeid.split("/")[-1].replace(" ", "_")
+        if "[" in t_id:
+            t_id_intro = t_id.split("[")[0]
+            param = re.sub(re.compile(r"\W"), "", t_id.split("[")[1])
+            t_id = t_id_intro + "__" + param
+        d_id = t_id
+        from sel4.utils.strutils import multi_replace
+        t_id = multi_replace(t_id, [("/", "."), ("\\", "."), ("::", "."), (".py", "")])
+        return t_id, d_id
+
+    if item.config.getoption("dashboard", False):
+        display_id, test_id = get_test_ids()
+        from sel4.core.dashboard import TestId
+        collector = cast(Dashboard, getattr(item.session, "_collected"))
+        collector.items_count += 1
+        test = TestId(
+            result="Not tested",
+            duration=0.0,
+            display_id=display_id,
+            log_path=pathlib.Path(".")
+        )
+        collector.tests.append(test)
+
+# endregion pytest_item_collected(item)
+
+
+# region pytest_deselected(items)
+
+def pytest_deselected(items: Sequence["Item"]) -> None:
+    """ Called for deselected test items, e.g. by keyword. """
+
+    if sb_config.dashboard:
+        sb_config.item_count -= len(items)
+        for item in items:
+            test_id, display_id = _get_test_ids_(item)
+            if test_id in sb_config._results.keys():
+                sb_config._results.pop(test_id)
+
+# endregion pytest_deselected(items)
+
+# endregion PYTEST INITIALIZATION HOOK IMPLEMENTATIONS
+
+
 if TYPE_CHECKING:
     from _pytest.fixtures import FixtureRequest
 
 
-@pytest.fixture(name="webdriver_test")
+@fixture(name="webdriver_test")
 def webdriver_test_fixture(request: "FixtureRequest", cache):
     if not request.config.pluginmanager.has_plugin("sel4.core.plugins.webdriver"):
         from sel4.core.exceptions import ImproperlyConfigured

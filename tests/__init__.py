@@ -3,40 +3,9 @@
 ########################################################################################################################
 import sys
 
-__all__ = ["colorize_option_group", "print_intro_table"]
+__all__ = ["colorize_option_group"]
 
 from loguru import logger
-
-
-def print_intro_table(metadata: dict):
-    from rich import box
-    from rich.table import Table
-
-    _table = Table(
-        title="Kiru automation framework",
-        caption="Versions used by the framework",
-        min_width=80,
-        box=box.ROUNDED,
-        style='pale_green3',
-        title_justify='center',
-        caption_justify='center',
-        highlight=True,
-        show_header=True
-    )
-    _table.add_column("Item")
-    _table.add_column("Value")
-    _table.add_row("git change-set", metadata.get("git change-set"))
-    _table.add_row("username", metadata.get("username"))
-    _table.add_row("platform", metadata.get("platform"))
-    _table.add_row("ip address", metadata.get("ip_address"))
-    _table.add_row("kiru environment", metadata.get("testing environment"))
-    _table.add_row("python version", metadata.get("python"))
-    packs = metadata.get("packages")
-    for k, v in packs.items():
-        _table.add_row(f"{k} version", v)
-
-    from rich import get_console
-    get_console().print(_table)
 
 
 def setup_framework():

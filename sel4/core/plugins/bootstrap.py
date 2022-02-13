@@ -71,5 +71,5 @@ def pytest_load_initial_conftests(early_config: "Config", parser: "Parser", args
             'setting environ "PYTEST_PLUGINS" to register <sel4.core.plugins.webdriver>'
         )
         os.environ.setdefault("PYTEST_PLUGINS", "sel4.core.plugins.webdriver")
-    if "pydevd" in sys.modules:
-        os.environ["PYTEST_DEBUG"] = "1"
+    # if "pydevd" in sys.modules:
+    #     os.environ["PYTEST_DEBUG"] = "1"
