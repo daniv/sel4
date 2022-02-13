@@ -1,7 +1,7 @@
 from typing_extensions import Literal
 
 from sel4.utils.envutils import env
-from sel4.utils.typeutils import OptionalInt, OptionalBool, LogLevelName
+from sel4.utils.typeutils import LogLevelName, OptionalBool, OptionalInt
 
 PROJECT_ROOT = None
 
