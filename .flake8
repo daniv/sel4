@@ -1,0 +1,4 @@
+[flake8]
+min_python_version = 3.9.2
+max-line-length = 121
+exclude = .git

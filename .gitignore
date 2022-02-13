@@ -155,3 +155,5 @@ dmypy.json
 # Pyre type checker
 .pyre/
 .idea/*
+/.sel4_cache/
+/webdrivers/

@@ -13,9 +13,34 @@ rich = "^11.0.0"
 selenium = "^4.1.0"
 pydantic = "^1.9.0"
 typing-extensions = "^4.0.1"
+flake8 = "^4.0.1"
+loguru = "^0.6.0"
+httpx = "^0.22.0"
+python-dateutil = "^2.8.2"
+webdrivermanager = "^0.10.0"
 
 [tool.poetry.dev-dependencies]
 pytest = "^7.0.1"
+
+[tool.pytest.ini_options]
+# REFERENCE: https://docs.pytest.org/en/6.2.x/reference.html
+addopts = "-rf -s --show-capture=no -p no:logging -p sel4.core.plugins.bootstrap --pdbcls=IPython.terminal.debugger:TerminalPdb"
+cache_dir = ".sel4_cache"
+minversion = "6.2.5"
+empty_parameter_set_mark = "xfail"
+console_output_style = "classic"
+filterwarnings = ["ignore:.*U.*mode is deprecated:DeprecationWarning"]
+markers = [
+    "testcase: connection to zephyr scale test case id",
+    "issues: a list of related issues to the specific test"
+]
+norecursedirs = "venv out .sel4_cache docs kiru res*"
+python_classes = "*TestSuite *Test"
+python_files = "tests_*.py"
+python_functions = "test_*"
+testpaths = "tests"
+xfail_strict = "True"
+enable_assertion_pass_hook = "True"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
