@@ -16,11 +16,11 @@ class Handler:
 
     def __init__(self, func, hook):
         if isinstance(func, classmethod):
-            raise TypeError('Handler cannot be a classmethod, {} is one'.format(func))
+            raise TypeError("Handler cannot be a classmethod, {} is one".format(func))
         if isinstance(func, staticmethod):
-            raise TypeError('Handler cannot be a staticmethod, {} is one'.format(func))
+            raise TypeError("Handler cannot be a staticmethod, {} is one".format(func))
         if not callable(func):
-            raise TypeError('{} should be a callable'.format(func))
+            raise TypeError("{} should be a callable".format(func))
 
         if isinstance(func, Handler):
             func = func._original_func
@@ -37,12 +37,14 @@ class Handler:
         if hook.args:
             func_sig = inspect.signature(func)
             for param in func_sig.parameters:
-                if param in ('self', 'cls'):
+                if param in ("self", "cls"):
                     continue
                 if param not in hook.args:
-                    raise RuntimeError('{} is not a valid handler for {}, argument {!r} is not supported'.format(
-                        func, hook, param
-                    ))
+                    raise RuntimeError(
+                        "{} is not a valid handler for {}, argument {!r} is not supported".format(
+                            func, hook, param
+                        )
+                    )
 
         self._original_func = func
         self._optional_args_func = optional_args_func(self._original_func)
@@ -52,7 +54,7 @@ class Handler:
         return _self_._optional_args_func(**kwargs)
 
     def __repr__(self):
-        return 'Handler({!r})'.format(self._original_func)
+        return "Handler({!r})".format(self._original_func)
 
 
 class BoundHandler(Handler):
@@ -60,7 +62,8 @@ class BoundHandler(Handler):
     Handler associated with a Hook.
     Created when requesting a hook's handlers by associating unbound handlers with the hook.
     """
-    def __init__(self, hook: 'Hook', handler: Handler, func):
+
+    def __init__(self, hook: "Hook", handler: Handler, func):
         super().__init__(func, hook)
         self.hook = hook
         if isinstance(handler, BoundHandler):
@@ -69,24 +72,24 @@ class BoundHandler(Handler):
             self._handler = handler
 
     def __getattribute__(self, name):
-        if name in ('hook', '_handler'):
+        if name in ("hook", "_handler"):
             return object.__getattribute__(self, name)
         else:
             return getattr(self._handler, name)
 
     def __setattr__(self, name, value):
-        if name in ('hook', '_handler'):
+        if name in ("hook", "_handler"):
             object.__setattr__(self, name, value)
         else:
             raise AttributeError(name)
 
     def __call__(_self_, **kwargs):
-        kwargs.setdefault('hook', _self_.hook)
+        kwargs.setdefault("hook", _self_.hook)
 
         if _self_.hook.is_class_associated:
-            kwargs.setdefault('cls', _self_.hook.subject)
+            kwargs.setdefault("cls", _self_.hook.subject)
         elif _self_.hook.is_instance_associated:
-            kwargs.setdefault('self', _self_.hook.subject)
+            kwargs.setdefault("self", _self_.hook.subject)
 
         with _self_.hook._triggering_ctx():
             if _self_._handler.is_generator and _self_.hook.consume_generators:
@@ -100,6 +103,7 @@ class NoSubject:
     Represents a placeholder object used as subject of a free hook
     which isn't associated with any class or object.
     """
+
     def __str__(self):
         return self.__class__.__name__
 
@@ -115,9 +119,14 @@ class Hook:
     Hook's handlers are functions registered to be called when the hook is triggered (called)
     most often by hook's subject itself.
     """
+
     def __init__(
-        self, name=None, subject=None,
-        parent_class_hook=None, instance_class_hook=None, single_handler=False,
+        self,
+        name=None,
+        subject=None,
+        parent_class_hook=None,
+        instance_class_hook=None,
+        single_handler=False,
         defining_class=None,
         args=None,
         consume_generators=True,
@@ -157,7 +166,9 @@ class Hook:
         Context manager that ensures that a hook is not re-triggered by one of its handlers.
         """
         if self._is_triggering:
-            raise RuntimeError('{} cannot be triggered while it is being handled'.format(self))
+            raise RuntimeError(
+                "{} cannot be triggered while it is being handled".format(self)
+            )
         self._is_triggering = True
         try:
             yield self
@@ -167,8 +178,10 @@ class Hook:
     def trigger(_self_, **kwargs):
         if _self_.args:
             for k in kwargs.keys():
-                if not k.startswith('_') and k not in _self_.args:
-                    raise ValueError('Unexpected keyword argument {!r} for {}'.format(k, _self_))
+                if not k.startswith("_") and k not in _self_.args:
+                    raise ValueError(
+                        "Unexpected keyword argument {!r} for {}".format(k, _self_)
+                    )
 
         if _self_.single_handler:
             if _self_.last_handler:
@@ -189,8 +202,8 @@ class Hook:
         to be passed as kwargs to Hook initialiser when creating a hook based on an existing hook.
         """
         return {
-            'single_handler': self.single_handler,
-            'consume_generators': self.consume_generators,
+            "single_handler": self.single_handler,
+            "consume_generators": self.consume_generators,
         }
 
     def get_all_handlers(self) -> Generator[Handler, None, None]:
@@ -227,10 +240,15 @@ class Hook:
             if handler is handler_or_func or handler._original_func is handler_or_func:
                 return True
 
-        if self.parent_class_hook is not None and self.parent_class_hook.has_handler(handler_or_func):
+        if self.parent_class_hook is not None and self.parent_class_hook.has_handler(
+            handler_or_func
+        ):
             return True
 
-        if self.instance_class_hook is not None and self.instance_class_hook.has_handler(handler_or_func):
+        if (
+            self.instance_class_hook is not None
+            and self.instance_class_hook.has_handler(handler_or_func)
+        ):
             return True
 
         return False
@@ -249,16 +267,23 @@ class Hook:
             self._direct_handlers.pop(index)
             self._cached_handlers = None
 
-        elif self.parent_class_hook is not None and self.parent_class_hook.has_handler(handler_or_func):
+        elif self.parent_class_hook is not None and self.parent_class_hook.has_handler(
+            handler_or_func
+        ):
             self.parent_class_hook.unregister_handler(handler_or_func)
             self._cached_handlers = None
 
-        elif self.instance_class_hook is not None and self.instance_class_hook.has_handler(handler_or_func):
+        elif (
+            self.instance_class_hook is not None
+            and self.instance_class_hook.has_handler(handler_or_func)
+        ):
             self.instance_class_hook.unregister_handler(handler_or_func)
             self._cached_handlers = None
 
         else:
-            raise ValueError('{} is not a registered handler of {}'.format(handler_or_func, self))
+            raise ValueError(
+                "{} is not a registered handler of {}".format(handler_or_func, self)
+            )
 
     def __bool__(self):
         return bool(self.handlers)
@@ -269,13 +294,19 @@ class Hook:
 
     @property
     def is_instance_associated(self):
-        return self.subject is not None and not isinstance(self.subject, (type, NoSubject))
+        return self.subject is not None and not isinstance(
+            self.subject, (type, NoSubject)
+        )
 
     def __repr__(self):
         if self.is_class_associated:
-            return '<{} {}.{}>'.format(self.__class__.__name__, self.subject.__name__, self.name)
+            return "<{} {}.{}>".format(
+                self.__class__.__name__, self.subject.__name__, self.name
+            )
         else:
-            return '<{} {}.{}>'.format(self.__class__.__name__, self.subject.__class__.__name__, self.name)
+            return "<{} {}.{}>".format(
+                self.__class__.__name__, self.subject.__class__.__name__, self.name
+            )
 
     __str__ = __repr__
 
@@ -298,33 +329,44 @@ class HookDescriptor:
     def __get__(self, instance, owner):
         has_class_as_subject = instance is None
         if has_class_as_subject:
-            attr_name = '_class_{}_hook#{}'.format(owner.__name__, self.name)
+            attr_name = "_class_{}_hook#{}".format(owner.__name__, self.name)
             if not hasattr(owner, attr_name):
                 parent_class_hook = getattr(owner.__bases__[0], self.name, None)
-                if parent_class_hook is not None and parent_class_hook.defining_class != self.defining_class:
+                if (
+                    parent_class_hook is not None
+                    and parent_class_hook.defining_class != self.defining_class
+                ):
                     # Do not link to parent_class_hook if it is actually
                     # a different hook (this hook is an overwrite of it).
                     parent_class_hook = None
-                setattr(owner, attr_name, self.create_hook(
-                    subject=owner,
-                    parent_class_hook=parent_class_hook,
-                    **self.defining_hook.meta
-                ))
+                setattr(
+                    owner,
+                    attr_name,
+                    self.create_hook(
+                        subject=owner,
+                        parent_class_hook=parent_class_hook,
+                        **self.defining_hook.meta
+                    ),
+                )
             return getattr(owner, attr_name)
         else:
-            attr_name = '_instance_hook#{}'.format(self.name)
+            attr_name = "_instance_hook#{}".format(self.name)
             if not hasattr(instance, attr_name):
-                setattr(instance, attr_name, self.create_hook(
-                    subject=instance,
-                    instance_class_hook=getattr(owner, self.name),
-                    **self.defining_hook.meta
-                ))
+                setattr(
+                    instance,
+                    attr_name,
+                    self.create_hook(
+                        subject=instance,
+                        instance_class_hook=getattr(owner, self.name),
+                        **self.defining_hook.meta
+                    ),
+                )
             return getattr(instance, attr_name)
 
     def create_hook(_self_, **kwargs):
-        kwargs.setdefault('name', _self_.name)
-        kwargs.setdefault('defining_class', _self_.defining_class)
-        kwargs.setdefault('args', _self_.defining_hook.args)
+        kwargs.setdefault("name", _self_.name)
+        kwargs.setdefault("defining_class", _self_.defining_class)
+        kwargs.setdefault("args", _self_.defining_hook.args)
         hook = _self_.hook_cls(**kwargs)
 
         # [H002]
@@ -338,7 +380,7 @@ class HookDescriptor:
         return hook
 
     def __str__(self):
-        return '<{} {!r}>'.format(self.__class__.__name__, self.name)
+        return "<{} {!r}>".format(self.__class__.__name__, self.name)
 
     __repr__ = __str__
 
@@ -352,14 +394,15 @@ class ClassHook(Hook):
     to as a namespace. When you create a new class with a hookable class as its base class, the new class
     will inherit all the handlers registered with hooks of the parent class.
     """
+
     def trigger(_self_, **kwargs):
         if not _self_.is_class_associated:
-            raise TypeError('Incorrect usage of {}'.format(_self_))
+            raise TypeError("Incorrect usage of {}".format(_self_))
         return super().trigger(**kwargs)
 
     def register_handler(self, handler_func):
         if self.is_instance_associated:
-            raise TypeError('Incorrect usage of {}'.format(self))
+            raise TypeError("Incorrect usage of {}".format(self))
         return super().register_handler(handler_func)
 
 
@@ -377,12 +420,14 @@ class InstanceHook(Hook):
 
     def trigger(_self_, **kwargs):
         if not _self_.defining_class:
-            raise RuntimeError((
-                'Did you forget to decorate your hookable class? {} is not initialised properly.'
-            ).format(_self_))
+            raise RuntimeError(
+                (
+                    "Did you forget to decorate your hookable class? {} is not initialised properly."
+                ).format(_self_)
+            )
 
         if not _self_.is_instance_associated:
-            raise TypeError('Incorrect usage of {}'.format(_self_))
+            raise TypeError("Incorrect usage of {}".format(_self_))
 
         return super().trigger(**kwargs)
 
@@ -399,8 +444,14 @@ class HookableMeta(type):
 
         for parent in bases:
             for k, v in dct.items():
-                if isinstance(v, Handler) and isinstance(getattr(parent, k, None), Hook):
-                    raise RuntimeError('{}.{} (handler) overwrites hook with the same name'.format(name, k))
+                if isinstance(v, Handler) and isinstance(
+                    getattr(parent, k, None), Hook
+                ):
+                    raise RuntimeError(
+                        "{}.{} (handler) overwrites hook with the same name".format(
+                            name, k
+                        )
+                    )
 
         # [H001]
         # Find handlers registered in the class against parent class's hooks.
@@ -418,10 +469,14 @@ class HookableMeta(type):
                         # Ignore the handlers that are registered against just-declared hooks who
                         # don't have name set yet.
                         continue
-                    parent_hook = getattr(hookable_parent, v.hook_name, None)  # type: Hook
+                    parent_hook = getattr(
+                        hookable_parent, v.hook_name, None
+                    )  # type: Hook
                     if parent_hook is not None and parent_hook.has_handler(v):
                         parent_hook.unregister_handler(v)
-                        handlers_registered_with_parent_class_hook.append((v.hook_name, v._original_func))
+                        handlers_registered_with_parent_class_hook.append(
+                            (v.hook_name, v._original_func)
+                        )
 
         hook_definitions = []
 
@@ -476,9 +531,14 @@ def hookable(cls):
     hookable_cls = type(cls.__name__, (cls, Hookable), {})
 
     for k, v in hook_definitions:
-        setattr(hookable_cls, k, HookDescriptor(defining_hook=v, defining_class=hookable_cls))
+        setattr(
+            hookable_cls,
+            k,
+            HookDescriptor(defining_hook=v, defining_class=hookable_cls),
+        )
 
     return hookable_cls
+
 
 def optional_args_func(func) -> callable:
     """
@@ -486,7 +546,7 @@ def optional_args_func(func) -> callable:
     that takes any number of kwargs and calls `func` with only the args/kwargs
     that `func` expects.
     """
-    if getattr(func, '_optional_args_func', False):
+    if getattr(func, "_optional_args_func", False):
         return func
 
     is_generator = inspect.isgeneratorfunction(func)
@@ -494,27 +554,32 @@ def optional_args_func(func) -> callable:
     expects_nothing = not func_sig.parameters
 
     if is_generator:
+
         @functools.wraps(func)
         def wrapped(*args, **kwargs):
             if expects_nothing:
                 yield from func()
             else:
                 bound_arguments = func_sig.bind(
-                    *args, **{k: v for k, v in kwargs.items() if k in func_sig.parameters}
+                    *args,
+                    **{k: v for k, v in kwargs.items() if k in func_sig.parameters}
                 )
                 yield from func(*bound_arguments.args, **bound_arguments.kwargs)
+
     else:
+
         @functools.wraps(func)
         def wrapped(*args, **kwargs):
             if expects_nothing:
                 return func()
             else:
                 bound_arguments = func_sig.bind(
-                    *args, **{k: v for k, v in kwargs.items() if k in func_sig.parameters}
+                    *args,
+                    **{k: v for k, v in kwargs.items() if k in func_sig.parameters}
                 )
                 return func(*bound_arguments.args, **bound_arguments.kwargs)
 
     # Mark it so that we don't double wrap our own
-    setattr(wrapped, '_optional_args_func', True)
+    setattr(wrapped, "_optional_args_func", True)
 
     return wrapped

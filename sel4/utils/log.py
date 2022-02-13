@@ -20,7 +20,7 @@ def setup_stderr_handler(error_console: Console) -> int:
         markup=True,
         tracebacks_width=error_console.width,
         rich_tracebacks=True,
-        tracebacks_show_locals=True
+        tracebacks_show_locals=True,
     )
     return logger.add(
         sink=rich_handler,
@@ -28,15 +28,12 @@ def setup_stderr_handler(error_console: Console) -> int:
         backtrace=False,
         colorize=False,
         diagnose=False,
-        catch=True
+        catch=True,
     )
 
 
 def setup_bootstrap_logger() -> "Logger":
-    console = Console(
-        file=sys.stdout,
-        force_terminal=True, color_system="truecolor"
-    )
+    console = Console(file=sys.stdout, force_terminal=True, color_system="truecolor")
     level = "DEBUG" if "pydevd" in sys.modules else "INFO"
     level = env("LOG_LEVEL", str, level)
 
@@ -55,13 +52,13 @@ def setup_bootstrap_logger() -> "Logger":
                 "sink": rich_handler,
                 "format": "[grey53]{extra[task]}[/]: [slate_blue1]{function}[/] -> {message}",
                 "level": rich_handler.level,
-                "backtrace": "False"
+                "backtrace": "False",
             }
         ],
-        extra={"task": "config".rjust(10, ' ')}
+        extra={"task": "config".rjust(10, " ")},
     )
     # bootstrap = logger.bind(task="bootstrap".rjust(10, ' '))
-    bootstrap = logger.bind(task="bootstrap".rjust(10, ' '))
+    bootstrap = logger.bind(task="bootstrap".rjust(10, " "))
     bootstrap.info("Logging was properly configured.")
     return bootstrap
 
@@ -69,7 +66,8 @@ def setup_bootstrap_logger() -> "Logger":
 def setup_session_logger():
     console = Console(
         file=sys.stdout,
-        force_terminal=True, color_system="truecolor",
+        force_terminal=True,
+        color_system="truecolor",
     )
     level = "DEBUG" if "pydevd" in sys.modules else "INFO"
     rich_handler = RichHandler(
@@ -83,6 +81,10 @@ def setup_session_logger():
     )
     logger.remove(2)
     logger.add(
-        sink=rich_handler, level=level, format="[slate_blue1]{function}[/] -> {message}",
-        backtrace=True, diagnose=True, catch=True
+        sink=rich_handler,
+        level=level,
+        format="[slate_blue1]{function}[/] -> {message}",
+        backtrace=True,
+        diagnose=True,
+        catch=True,
     )

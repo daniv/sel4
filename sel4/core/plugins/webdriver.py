@@ -30,8 +30,9 @@ if TYPE_CHECKING:
 
 # region PYTEST PLUGINS
 
+
 @pytest.hookimpl(tryfirst=True)
-def pytest_addoption(parser: 'Parser') -> None:
+def pytest_addoption(parser: "Parser") -> None:
     """
      This plugin adds the following command-line options to pytest:
 
@@ -45,16 +46,19 @@ def pytest_addoption(parser: 'Parser') -> None:
     --fullscreen  (Start tests with the web browser window maximized.)
     """
     from tests import colorize_option_group
-    s_str = colorize_option_group('WebDriver')
-    sel4_group = parser.getgroup(name='WebDriver', description=s_str)
-    ctx_logger = logger.bind(task="setup".rjust(10, ' '))
-    ctx_logger.debug('adding "WebDriver plugin" command-line options for [bold]pytest[/] ...')
+
+    s_str = colorize_option_group("WebDriver")
+    sel4_group = parser.getgroup(name="WebDriver", description=s_str)
+    ctx_logger = logger.bind(task="setup".rjust(10, " "))
+    ctx_logger.debug(
+        'adding "WebDriver plugin" command-line options for [bold]pytest[/] ...'
+    )
 
     # region --chrome
     sel4_group.addoption(
-        '--chrome',
-        action='store_true',
-        dest='use_chrome',
+        "--chrome",
+        action="store_true",
+        dest="use_chrome",
         default=False,
         help="""Will use Google Chrome""",
     )
@@ -95,7 +99,7 @@ def pytest_addoption(parser: 'Parser') -> None:
         "--remote",
         action="store_true",
         dest="use_remote",
-        default=os.getenv('REMOTE', False),
+        default=os.getenv("REMOTE", False),
         help="""Will use remote web driver.""",
     )
     # endregion --remote
@@ -105,7 +109,7 @@ def pytest_addoption(parser: 'Parser') -> None:
         "--headless",
         action="store_true",
         dest="headless",
-        default=os.getenv('HEADLESS', False),
+        default=os.getenv("HEADLESS", False),
         help="""Using this makes Webdriver run web browsers
                 headless, which is required on headless machines.
                 Default: False on Mac/Windows. True on Linux.""",
@@ -118,7 +122,7 @@ def pytest_addoption(parser: 'Parser') -> None:
         "--gui",
         action="store_true",
         dest="headed",
-        default=os.getenv('GUI', False),
+        default=os.getenv("GUI", False),
         help="""Using this makes Webdriver run web browsers with
                 a GUI when running tests on Linux machines.
                 (The default setting on Linux is headless.)
@@ -128,21 +132,22 @@ def pytest_addoption(parser: 'Parser') -> None:
 
     # region --maximize, --maximize-window-startup
     sel4_group.addoption(
-        '--maximize',
-        '--maximize-window-startup',
-        action='store_true',
-        dest='maximize_option',
-        default=os.getenv('BROWSER_START_MAXIMIZED', True),
+        "--maximize",
+        "--maximize-window-startup",
+        action="store_true",
+        dest="maximize_option",
+        default=os.getenv("BROWSER_START_MAXIMIZED", True),
         help="""The option to start with the browser window maximized.""",
     )
     # endregion --maximize, --maximize-window-startup
 
     # region --fullscreen, --fullscreen-window-startup
     sel4_group.addoption(
-        '--fullscreen', '--fullscreen-window-startup',
-        action='store_true',
-        dest='fullscreen_option',
-        default=os.getenv('BROWSER_START_FULL_SCREEN', False),
+        "--fullscreen",
+        "--fullscreen-window-startup",
+        action="store_true",
+        dest="fullscreen_option",
+        default=os.getenv("BROWSER_START_FULL_SCREEN", False),
         help="""The option to start with the browser window fullscreen.""",
     )
     # endregion --fullscreen, --fullscreen-window-startup
@@ -155,13 +160,13 @@ def pytest_addoption(parser: 'Parser') -> None:
     )
 
     parser.addini(
-        name='start_page',
+        name="start_page",
         help="""Designates the starting URL for the web browser when each test begins""",
-        type='string',
-        default=settings.HOME_URL
+        type="string",
+        default=settings.HOME_URL,
     )
 
-    ctx_logger.debug('Validating browser switches (only 1 should be supplied)')
+    ctx_logger.debug("Validating browser switches (only 1 should be supplied)")
     browser_text = ""
     sys_argv = sys.argv
     browser_list = []
@@ -183,20 +188,22 @@ def pytest_addoption(parser: 'Parser') -> None:
     if len(browser_list) > 1:
         bl = ", ".join(browser_list)
         raise ImproperlyConfigured(
-                'TOO MANY browser types were entered!'
-                f'\n  \tThere were {len(browser_list)} found:  > "{bl}"'
-                "\nONLY ONE default browser is allowed!, Select a single browser & try again"
+            "TOO MANY browser types were entered!"
+            f'\n  \tThere were {len(browser_list)} found:  > "{bl}"'
+            "\nONLY ONE default browser is allowed!, Select a single browser & try again"
         )
-    parser.addini("browser_text", type="string", default=browser_text, help="The selected browser")
+    parser.addini(
+        "browser_text", type="string", default=browser_text, help="The selected browser"
+    )
 
 
 @pytest.mark.trylast
-def pytest_configure(config: 'Config'):
+def pytest_configure(config: "Config"):
     """
     Determined if we should load the webdriver plugin
     This is a pytest hook implementation
     """
-    config_logger = logger.bind(task="config".rjust(10, ' '))
+    config_logger = logger.bind(task="config".rjust(10, " "))
 
     """ This runs after command-line options have been parsed. """
     # sb_config.item_count = 0

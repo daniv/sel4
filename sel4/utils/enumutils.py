@@ -11,7 +11,7 @@ __all__ = [
     "StrEnum",
     "AutoNumberEnum",
     "OrderedEnum",
-    "is_enum"
+    "is_enum",
 ]
 
 
@@ -26,7 +26,9 @@ class EnumMixin(Enum):
         Allow each enum to be easily converted to dict
         """
         return {
-            k: v for k, v in cls.__dict__.items() if not isinstance(v, classmethod) and not k.startswith("_")
+            k: v
+            for k, v in cls.__dict__.items()
+            if not isinstance(v, classmethod) and not k.startswith("_")
         }
 
     @classmethod
@@ -44,7 +46,7 @@ class MemberDirEnum(EnumMixin):
     """
 
     def __dir__(self):
-        return super().__dir__() + [m for m in self.__dict__ if m[0] != '_']
+        return super().__dir__() + [m for m in self.__dict__ if m[0] != "_"]
 
 
 class IntEnum(int, EnumMixin):
@@ -63,19 +65,19 @@ class StrEnum(str, EnumMixin):
 
     def __new__(cls, *values):  # noqa: D102
         if len(values) > 3:
-            raise TypeError(f'too many arguments for str(): {values!r}')
+            raise TypeError(f"too many arguments for str(): {values!r}")
         if len(values) == 1:
             # it must be a string
             if not isinstance(values[0], str):
-                raise TypeError(f'{values[0]!r} is not a string')
+                raise TypeError(f"{values[0]!r} is not a string")
         if len(values) > 1:
             # check that encoding argument is a string
             if not isinstance(values[1], str):
-                raise TypeError(f'encoding must be a string, not {values[1]!r}')
+                raise TypeError(f"encoding must be a string, not {values[1]!r}")
             if len(values) > 2:
                 # check that error's argument is a string
                 if not isinstance(values[2], str):
-                    raise TypeError(f'errors must be a string, not {values[2]!r}')
+                    raise TypeError(f"errors must be a string, not {values[2]!r}")
         value = str(*values)
         member = str.__new__(cls, value)
         member._value_ = value
@@ -131,4 +133,3 @@ def is_enum(obj: Type) -> bool:
     """
     # The enum itself is subclass of EnumMeta; enum members subclass Enum
     return isinstance(obj, EnumMeta)
-

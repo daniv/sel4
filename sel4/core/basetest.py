@@ -9,8 +9,3 @@ class BasePytestUnitTestCase(unittest.UnitTestCase):
         self.__deferred_assert_count = 0
         self.__deferred_assert_failures = []
         self.__visual_baseline_copies = []
-
-
-
-
-

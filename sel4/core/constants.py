@@ -12,20 +12,20 @@ EXTREME_TIMEOUT: int = 60
 
 
 class Environments(StrEnum):
-    STAGING = 'staging'
-    QA = 'qa'
-    DEV = 'dev'
-    PROD = 'prod'
-    LOCAL = 'local'
+    STAGING = "staging"
+    QA = "qa"
+    DEV = "dev"
+    PROD = "prod"
+    LOCAL = "local"
 
     @classmethod
     def settings(cls) -> Dict[str, str]:
         return {
-            Environments.STAGING: 'sel4.settings.staging',
-            Environments.QA: 'sel4.settings.qa',
-            Environments.DEV: 'sel4.settings.dev',
-            Environments.PROD: 'sel4.settings.prod',
-            Environments.LOCAL: 'sel4.settings.local'
+            Environments.STAGING: "sel4.settings.staging",
+            Environments.QA: "sel4.settings.qa",
+            Environments.DEV: "sel4.settings.dev",
+            Environments.PROD: "sel4.settings.prod",
+            Environments.LOCAL: "sel4.settings.local",
         }
 
     @classmethod
@@ -75,47 +75,47 @@ class Browser:
     }
 
     SETTINGS = {
-        'chrome': {
-            'arguments': [
-                '--test-type',
-                '--log-level=3',
-                '--no-first-run',
-                '--disable-translate',
-                '--allow-file-access-from-files',
-                '--allow-insecure-localhost',
-                '--allow-running-insecure-content',
-                '--disable-infobars',
-                '--disable-notifications',
-                '--disable-save-password-bubble',
-                '--disable-single-click-autofill',
-                '--disable-autofill-keyboard-accessory-view[8]',
-                '--dns-prefetch-disable',
-                '--dom-automation',
-                '--disable-hang-monitor',
-                '--disable-prompt-on-repost',
-                '--ignore-certificate-errors',
-                '--no-sandbox',
+        "chrome": {
+            "arguments": [
+                "--test-type",
+                "--log-level=3",
+                "--no-first-run",
+                "--disable-translate",
+                "--allow-file-access-from-files",
+                "--allow-insecure-localhost",
+                "--allow-running-insecure-content",
+                "--disable-infobars",
+                "--disable-notifications",
+                "--disable-save-password-bubble",
+                "--disable-single-click-autofill",
+                "--disable-autofill-keyboard-accessory-view[8]",
+                "--dns-prefetch-disable",
+                "--dom-automation",
+                "--disable-hang-monitor",
+                "--disable-prompt-on-repost",
+                "--ignore-certificate-errors",
+                "--no-sandbox",
                 "--homepage=about:blank",
             ],
-            'experimental_options': {
-                'local_discovery.notifications_enabled': False,
-                'credentials_enable_service': False,
-                'download.prompt_for_download': False,
-                'download.directory_upgrade': True,
-                'safebrowsing.enabled': False,
-                'safebrowsing.disable_download_protection': True,
-                'default_content_setting_values.notifications': 0,
-                'default_content_settings.popups': 0,
-                'managed_default_content_settings.popups': 0,
-                'content_settings.exceptions.automatic_downloads.*.setting': 1,
-                'profile.password_manager_enabled': False,
-                'profile.default_content_setting_values.notifications': 2,
-                'profile.default_content_settings.popups': 0,
-                'profile.managed_default_content_settings.popups': 0,
-                'profile.default_content_setting_values.automatic_downloads': 1,
+            "experimental_options": {
+                "local_discovery.notifications_enabled": False,
+                "credentials_enable_service": False,
+                "download.prompt_for_download": False,
+                "download.directory_upgrade": True,
+                "safebrowsing.enabled": False,
+                "safebrowsing.disable_download_protection": True,
+                "default_content_setting_values.notifications": 0,
+                "default_content_settings.popups": 0,
+                "managed_default_content_settings.popups": 0,
+                "content_settings.exceptions.automatic_downloads.*.setting": 1,
+                "profile.password_manager_enabled": False,
+                "profile.default_content_setting_values.notifications": 2,
+                "profile.default_content_settings.popups": 0,
+                "profile.managed_default_content_settings.popups": 0,
+                "profile.default_content_setting_values.automatic_downloads": 1,
             },
-            'servicelog': None,
-            'service_args': [],
+            "servicelog": None,
+            "service_args": [],
         }
     }
 
