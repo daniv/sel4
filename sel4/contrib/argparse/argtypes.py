@@ -3,10 +3,7 @@ https://github.com/eerimoq/argparse_addons/blob/master/argparse_addons.py
 """
 
 import argparse
-from typing import (
-    Union,
-    Any
-)
+from typing import Any, Union
 
 import pydantic
 from pydantic import validators
