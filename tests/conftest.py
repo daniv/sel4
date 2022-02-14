@@ -103,28 +103,23 @@ import pathlib
 import re
 import sys
 from collections import defaultdict
-from typing import TYPE_CHECKING, List, Sequence, Optional, cast
-from pytest import (
-    StashKey,
-    hookimpl,
-    fixture
-)
+from typing import TYPE_CHECKING, List, Optional, Sequence, cast
+
 from loguru import logger
+from pytest import StashKey, fixture, hookimpl
 from rich import get_console
 
 from sel4.contrib.argparse import argtypes
+from sel4.core.dashboard import Dashboard, TestId
 from sel4.core.exceptions import ImproperlyConfigured
 from sel4.core.runtime import runtime_store
-from sel4.core.dashboard import Dashboard, TestId
 
 pytest_plugins = ["pytester"]
 
 
 if TYPE_CHECKING:
-    from pytest import Config
-    from pytest import PytestPluginManager
-    from pytest import Parser
     from _pytest.config import _PluggyPlugin
+    from pytest import Config, Parser, PytestPluginManager
 
 
 ########################################################################################################################
@@ -136,27 +131,28 @@ if TYPE_CHECKING:
 
 # region pytest_addhooks(pluginmanager)
 
+
 def pytest_addhooks(pluginmanager: "PytestPluginManager") -> None:
-    """ Called at plugin registration time to allow
-        adding new hooks via a call to pluginmanager.add_hookspecs(module_or_class, prefix).
+    """Called at plugin registration time to allow adding new hooks via a call to pluginmanager.
+
     :param pluginmanager: pytest plugin manager.
     """
     pluginmanager.enable_tracing()
     logger.trace("Registering hooks from 'PytestHooks' and 'DirectoryManagerHooks'")
     from sel4.core.plugins.directory_manager import DirectoryManagerHooks
+
     pluginmanager.add_hookspecs(DirectoryManagerHooks)
     # from core.plugins.hooks import PytestHooks
     # pluginmanager.add_hookspecs(PytestHooks)
-    # pluginmanager.add_hookcall_monitoring(before=before_hook, after=after_hook)
-    ...
+    pluginmanager.add_hookcall_monitoring(before=_before_hook, after=_after_hook)
 
 # endregion pytest_addhooks(pluginmanager)
 
-
 # region pytest_addoption(parser, pluginmanager)
 
+
 @hookimpl
-def pytest_addoption(parser: 'Parser', pluginmanager: 'PytestPluginManager') -> None:
+def pytest_addoption(parser: "Parser", pluginmanager: "PytestPluginManager") -> None:
     """
     Register argparse-style options and ini-style config values, called once at the beginning of a test run.
 
@@ -175,17 +171,20 @@ def pytest_addoption(parser: 'Parser', pluginmanager: 'PytestPluginManager') -> 
             --demo-sleep SECONDS  (Set the wait time after Demo Mode actions.)
             --dashboard  (Enable the Dashboard. Saved at: dashboard.html)
     """
-    if 'PYTEST_PLUGINS' in os.environ:
-        logger.bind(
-            task="setup".rjust(10, ' ')
-        ).debug('<os.environ "PYTEST_PLUGINS"> was set, loading plugins [consider_env]...')
+    if "PYTEST_PLUGINS" in os.environ:
+        logger.bind(task="setup".rjust(10, " ")).debug(
+            '<os.environ "PYTEST_PLUGINS"> was set, loading plugins [consider_env]...'
+        )
         pluginmanager.consider_env()
 
     from tests import colorize_option_group
-    s_str = colorize_option_group('Sel4Automation')
-    sel4_group = parser.getgroup(name='Sel4Automation', description=s_str)
-    ctx_logger = logger.bind(task="setup".rjust(10, ' '))
-    ctx_logger.debug('adding "Sel4Automation conftest-plugin" command-line options for [bold]pytest[/] ...')
+
+    s_str = colorize_option_group("Sel4Automation")
+    sel4_group = parser.getgroup(name="Sel4Automation", description=s_str)
+    ctx_logger = logger.bind(task="setup".rjust(10, " "))
+    ctx_logger.debug(
+        'adding "Sel4Automation conftest-plugin" command-line options for [bold]pytest[/] ...'
+    )
 
     # region --xvfb
     sel4_group.addoption(
@@ -203,7 +202,8 @@ def pytest_addoption(parser: 'Parser', pluginmanager: 'PytestPluginManager') -> 
 
     # region --archive-results, --archive
     sel4_group.addoption(
-        "--archive-results", "--archive",
+        "--archive-results",
+        "--archive",
         action="store_true",
         dest="archive_results",
         default=False,
@@ -237,10 +237,10 @@ def pytest_addoption(parser: 'Parser', pluginmanager: 'PytestPluginManager') -> 
 
     # region --demo-mode, --demo
     sel4_group.addoption(
-        '--demo-mode',
-        '--demo',
-        action='store_true',
-        dest='demo_mode',
+        "--demo-mode",
+        "--demo",
+        action="store_true",
+        dest="demo_mode",
         default=False,
         help="""Using this slows down the automation and lets you
                    visually see what the tests are actually doing.""",
@@ -249,10 +249,10 @@ def pytest_addoption(parser: 'Parser', pluginmanager: 'PytestPluginManager') -> 
 
     # region --demo-sleep
     sel4_group.addoption(
-        '--demo-sleep',
-        action='store',
-        dest='demo_sleep',
-        metavar="SECONDS",
+        "--demo-sleep",
+        action="store",
+        dest="demo_sleep",
+        metavar="TIME:SECONDS",
         default=1,
         type=argtypes.ConstrainedIntArgType(strict=True, ge=1),
         help="""Setting this overrides the Demo Mode sleep
@@ -295,14 +295,11 @@ def pytest_addoption(parser: 'Parser', pluginmanager: 'PytestPluginManager') -> 
         )
 
     # Reuse-Session Mode does not support tests using forked subprocesses.
-    if "--forked" in sys_argv and (
-        "--rs" in sys_argv or "--reuse-session" in sys_argv
-    ):
+    if "--forked" in sys_argv and ("--rs" in sys_argv or "--reuse-session" in sys_argv):
         raise ImproperlyConfigured(
             "\n\n  Reuse-Session Mode does NOT support forked subprocesses!"
             '\n  (DO NOT combine "--forked" with "--rs"/"--reuse-session"!)\n'
         )
-
 
     # parser.addini(
     #     name='used_packs',
@@ -317,47 +314,47 @@ def pytest_addoption(parser: 'Parser', pluginmanager: 'PytestPluginManager') -> 
 
 # region pytest_configure(config)
 
+
 @hookimpl
-def pytest_configure(config: 'Config') -> None:
+def pytest_configure(config: "Config") -> None:
     """
     Allow plugins and conftest files to perform initial configuration.
+
     This hook is called for every plugin and initial conftest file after command line options have been parsed.
     After that, the hook is called for other conftest files as they are imported.
 
     :param config: The pytest Config object instance
     """
-    config_logger = logger.bind(task="config".rjust(10, ' '))
+    config_logger = logger.bind(task="config".rjust(10, " "))
 
     config_logger.trace("Storing stash key for pytestconfig")
-    from pytest import Config
-    pytestconfig = StashKey[Config]()
+    from sel4.core.runtime import pytestconfig, timeout_changed
     runtime_store[pytestconfig] = config
-    dashboard = StashKey[bool]()
-    runtime_store[dashboard] = config.getoption("dashboard", False)
-    dashboard_initialized = StashKey[bool]()
-    runtime_store[dashboard_initialized] = False
-    has_exception = StashKey[bool]()
-    runtime_store[has_exception] = False
+    runtime_store[timeout_changed] = False
 
     config_logger.info('Registering "DirectoryManagerPlugin" plugin"')
     from sel4.core.plugins.directory_manager import DirectoryManagerPlugin
+
     plugin = DirectoryManagerPlugin(config)
     config.pluginmanager.register(plugin, plugin.name)
 
     if config.getoption("archive_results"):
-        config_logger.debug('Option "archive_results" was set, calling [grey66]hook pytest_kiru_archive_results[/]')
+        config_logger.debug(
+            'Option "archive_results" was set, calling [grey66]hook pytest_kiru_archive_results[/]'
+        )
         config.hook.pytest_archive_results()
-    config_logger.debug('calling hook [grey66]pytest_kiru_create_results_directory[/]')
+    config_logger.debug("calling hook [grey66]pytest_create_results_directory[/]")
     config.hook.pytest_create_results_directory()
     config_logger.debug('Unregistering "DirectoryManagerPlugin", no longer needed')
     config.pluginmanager.unregister(plugin)
     del plugin
 
     from sel4.contrib.pytest.utils import collect_metadata
+
     metadata = collect_metadata(config)
     # metadata.update({k: v for k, v in config.getoption("metadata")})
     # metadata.update(json.loads(config.getoption("metadata_from_json")))
-    plugins = defaultdict(int)
+    plugins = defaultdict(lambda: None)
     for plugin, dist in config.pluginmanager.list_plugin_distinfo():
         name, version = dist.project_name, dist.version
         if name.startswith("pytest-"):
@@ -366,15 +363,22 @@ def pytest_configure(config: 'Config') -> None:
     metadata.plugins = plugins
 
     from sel4.contrib.pytest.utils.metadata import Metadata
+
     metadata_key = StashKey[Metadata]
     runtime_store[metadata_key] = metadata
 
     if not hasattr(config, "workerinput"):
         # prevent opening htmlpath on worker nodes (xdist)
-        from sel4.core.plugins.reporter import HtmlReporter
-        reporter = HtmlReporter(config)
-        config_logger.debug("Registering HtmlReporter plugin")
-        config.pluginmanager.register(reporter, HtmlReporter.name)
+        from sel4.core.plugins.reporter import PyTestReporter
+
+        reporter_plugin = PyTestReporter(config)
+        config_logger.debug("Registering PyTestReporter plugin")
+        config.pluginmanager.register(reporter_plugin, PyTestReporter.name)
+        config.add_cleanup(
+            cleanup_factory(pluginmanager=config.pluginmanager, plugin=reporter_plugin)
+        )
+    else:
+        reporter_plugin = PyTestReporterWorker
 
     # assert_plugin = AssertionPlugin(config)
     # config.pluginmanager.register(assert_plugin, AssertionPlugin.name)
@@ -383,21 +387,35 @@ def pytest_configure(config: 'Config') -> None:
     config_logger.debug('Creating [bold]cache[/bold] folder if not exists"')
     # -- cleaning old cache
     from sel4.contrib.pytest.cache_helper import PytestCache
+
     c = PytestCache(config.cache)
     cache_path = config.rootpath.joinpath(config.getini("cache_dir"))
-    config_logger.debug('Cleaning cache dir for files older than 10 days in different thread"')
+    config_logger.debug(
+        'Cleaning cache dir for files older than 10 days in different thread"'
+    )
     from threading import Thread
-    thread = Thread(target=c.delete_cache_older_than_x_days, args=(cache_path, -10,))
+
+    thread = Thread(
+        target=c.delete_cache_older_than_x_days,
+        args=(
+            cache_path,
+            -10,
+        ),
+    )
     thread.daemon = True
     thread.start()
 
     # -- registering markers
     config_logger.debug('Registering the following markers:  ["unittest", "testcase"]')
-    markers_ini = config.getini('markers')
-    if not list(filter(lambda x: x.startswith('unittest'), markers_ini)):
-        config.addinivalue_line('markers', 'unittest: internal unit-tests for this framework')
-    if not list(filter(lambda x: x.startswith('testcase'), markers_ini)):
-        config.addinivalue_line('markers', 'testcase: connection to zephyr scale test case id')
+    markers_ini = config.getini("markers")
+    if not list(filter(lambda x: x.startswith("unittest"), markers_ini)):
+        config.addinivalue_line(
+            "markers", "unittest: internal unit-tests for this framework"
+        )
+    if not list(filter(lambda x: x.startswith("testcase"), markers_ini)):
+        config.addinivalue_line(
+            "markers", "testcase: connection to zephyr scale test case id"
+        )
 
 
 # endregion pytest_configure(config)
@@ -406,23 +424,27 @@ def pytest_configure(config: 'Config') -> None:
 # region pytest_plugin_registered(plugin, manager)
 
 
-def pytest_plugin_registered(plugin: "_PluggyPlugin", manager: "PytestPluginManager") -> None:
-    """
-    A new pytest plugin got registered.
+def pytest_plugin_registered(
+    plugin: "_PluggyPlugin", manager: "PytestPluginManager"
+) -> None:
+    """ A new pytest plugin got registered.
 
     :param plugin: The plugin module or instance.
     :param manager: pytest plugin manager.
     """
-    _UNREGISTER_PLUGINS = frozenset(['junitxml', 'nose', 'logging', 'doctest'])
-    prefix = 'A new pytest plugin got registered -> '
-    with logger.contextualize(task="setup".rjust(10, ' ')):
+    _UNREGISTER_PLUGINS = frozenset(["junitxml", "nose", "logging", "doctest"])
+    prefix = "A new pytest plugin got registered -> "
+    with logger.contextualize(task="setup".rjust(10, " ")):
         canonical_name = manager.get_canonical_name(plugin)
         name = manager.get_name(plugin)
         if canonical_name == name:
-            logger.debug('{} {name}', prefix, name=name)
+            logger.debug("{} {name}", prefix, name=name)
         else:
             logger.debug(
-                '{} {name}/{canonical_name}', prefix, name=name, canonical_name=canonical_name
+                "{} {name}/{canonical_name}",
+                prefix,
+                name=name,
+                canonical_name=canonical_name,
             )
     plugin_name = manager.get_name(plugin)
     if plugin_name in _UNREGISTER_PLUGINS:
@@ -448,38 +470,41 @@ PYTEST SESSION STARTED
 
 
 @hookimpl(trylast=True)
-def pytest_sessionstart(session: 'Session'):
+def pytest_sessionstart(session: "Session"):
     from rich.markdown import Markdown
+
     md = Markdown(_MARKDOWN)
-    get_console().print(md, style='bright_blue')
+    get_console().print(md, style="bright_blue")
     from sel4.utils.log import setup_session_logger
+
     # setup_session_logger()
     logger.info("Successfully setup logging configuration for session")
+
 
 # endregion sessionstart
 
 
 # region pytest_unconfigure(config)
 
+
 def pytest_unconfigure(config: "Config") -> None:
     """
     Called before test process is exited.
+
     :param config:  The pytest config object.
     """
-    with logger.contextualize(task="teardown".rjust(10, ' ')):
+    with logger.contextualize(task="teardown".rjust(10, " ")):
         logger.debug("Unregistering kiru plugins")
 
         from sel4.core.plugins.directory_manager import DirectoryManagerPlugin
+
         # pl_names = ['sel4.core.plugins.webdriver', DirectoryManagerPlugin.name, AssertionPlugin.name]
-        pl_names = ['sel4.core.plugins.webdriver', DirectoryManagerPlugin.name]
+        pl_names = ["sel4.core.plugins.webdriver", DirectoryManagerPlugin.name]
         for pl in pl_names:
             if config.pluginmanager.has_plugin(pl):
                 plugin = config.pluginmanager.get_plugin(pl)
                 name = config.pluginmanager.get_name(plugin)
-                logger.debug(
-                    'Unregistering plugin: '
-                    '[wheat1]{name}[/]', name=name
-                )
+                logger.debug("Unregistering plugin: " "[wheat1]{name}[/]", name=name)
                 config.pluginmanager.unregister(plugin, pl)
 
 
@@ -488,37 +513,48 @@ def pytest_unconfigure(config: "Config") -> None:
 ########################################################################################################################
 # PYTEST HOOKS HELPERS
 ########################################################################################################################
-def before_hook(hook_name: str, hook_impls: List, kwargs: dict):
-    with logger.contextualize(task="setup".rjust(10, ' ')):
+def _before_hook(hook_name: str, hook_impls: List, kwargs: dict):
+    with logger.contextualize(task="setup".rjust(10, " ")):
         if len(hook_impls):
             for hook_impl in hook_impls:
                 logger.trace(
                     'hook_name: "{}", plugin: {plugin}\n\tkwargs: {keys}',
-                    hook_name, plugin=hook_impl.plugin_name, keys=list(kwargs.keys())
+                    hook_name,
+                    plugin=hook_impl.plugin_name,
+                    keys=list(kwargs.keys()),
                 )
         else:
             logger.trace(
-                'hook_name: "{}", kwargs: {keys}',
-                hook_name, keys=list(kwargs.keys())
+                'hook_name: "{}", kwargs: {keys}', hook_name, keys=list(kwargs.keys())
             )
 
 
-def after_hook(outcome, hook_name: str, hook_impls: List, kwargs: dict):
-    with logger.contextualize(task="setup".rjust(10, ' ')):
+def _after_hook(outcome, hook_name: str, hook_impls: List, kwargs: dict):
+    with logger.contextualize(task="setup".rjust(10, " ")):
         if len(hook_impls):
             for hook_impl in hook_impls:
                 logger.trace(
                     'hook_name: "{}", plugin: {plugin}\n\tkwargs: {keys}',
-                    hook_name, plugin=hook_impl.plugin_name, keys=list(kwargs.keys())
+                    hook_name,
+                    plugin=hook_impl.plugin_name,
+                    keys=list(kwargs.keys()),
                 )
         else:
             logger.trace(
-                'hook_name: "{}", kwargs: {keys}',
-                hook_name, keys=list(kwargs.keys())
+                'hook_name: "{}", kwargs: {keys}', hook_name, keys=list(kwargs.keys())
             )
 
         if outcome.excinfo:
-            logger.error('excinfo: {}', outcome.excinfo)
+            logger.error("excinfo: {}", outcome.excinfo)
+
+
+def cleanup_factory(pluginmanager: "PytestPluginManager", plugin):
+    def clean_up():
+        name = plugin.name
+        pluginmanager.unregister(name=name)
+
+    return clean_up
+
 
 # endregion PYTEST INITIALIZATION HOOK IMPLEMENTATIONS
 
@@ -530,36 +566,41 @@ def after_hook(outcome, hook_name: str, hook_impls: List, kwargs: dict):
 # region PYTEST INITIALIZATION HOOK IMPLEMENTATIONS
 
 if TYPE_CHECKING:
-    from pytest import Item, Collector
-    from pytest import Function
+    from pytest import Collector, Function, Item
 
 
 # region pytest_pyfunc_call(pyfuncitem)
 
+
 @hookimpl(hookwrapper=True)
 def pytest_pyfunc_call(pyfuncitem: "Function") -> Optional[object]:
-    do_something_before_next_hook_executes()
+    # do_something_before_next_hook_executes()
     outcome = yield
     # outcome.excinfo may be None or a (cls, val, tb) tuple
     res = outcome.get_result()  # will raise if outcome was exception
-    post_process_result(res)
-    outcome.force_result(new_res)
+    # post_process_result(res)
+    # outcome.force_result(new_res)
+
 
 # endregion pytest_pyfunc_call(pyfuncitem)
 
 
 # region pytest_collectstart(collector)
 
+
 def pytest_collectstart(collector: "Collector") -> None:
-    collect_logger = logger.bind(task="collect".rjust(10, ' '))
-    collect_logger.trace("Collecting tests on {}", collector.name)
-    collect_logger.debug("Collecting tests on path: {}", str(collector.path))
-    collector.session._collected = Dashboard()
+    pass
+    # collect_logger = logger.bind(task="collect".rjust(10, " "))
+    # collect_logger.trace("Collecting tests on {}", collector.name)
+    # collect_logger.debug("Collecting tests on path: {}", str(collector.path))
+    # collector.session._collected = Dashboard()
+
 
 # endregion pytest_collectstart(collector)
 
 
 # region pytest_item_collected(item)
+
 
 def pytest_itemcollected(item: "Item"):
     from sel4.core import runtime
@@ -572,36 +613,39 @@ def pytest_itemcollected(item: "Item"):
             t_id = t_id_intro + "__" + param
         d_id = t_id
         from sel4.utils.strutils import multi_replace
+
         t_id = multi_replace(t_id, [("/", "."), ("\\", "."), ("::", "."), (".py", "")])
         return t_id, d_id
 
     if item.config.getoption("dashboard", False):
         display_id, test_id = get_test_ids()
-        from sel4.core.dashboard import TestId
         collector = cast(Dashboard, getattr(item.session, "_collected"))
         collector.items_count += 1
         test = TestId(
             result="Not tested",
             duration=0.0,
             display_id=display_id,
-            log_path=pathlib.Path(".")
+            log_path=pathlib.Path("."),
         )
         collector.tests.append(test)
+
 
 # endregion pytest_item_collected(item)
 
 
 # region pytest_deselected(items)
 
-def pytest_deselected(items: Sequence["Item"]) -> None:
-    """ Called for deselected test items, e.g. by keyword. """
 
-    if sb_config.dashboard:
-        sb_config.item_count -= len(items)
-        for item in items:
-            test_id, display_id = _get_test_ids_(item)
-            if test_id in sb_config._results.keys():
-                sb_config._results.pop(test_id)
+def pytest_deselected(items: Sequence["Item"]) -> None:
+    """Called for deselected test items, e.g. by keyword."""
+    pass
+    # if sb_config.dashboard:
+    #     sb_config.item_count -= len(items)
+    #     for item in items:
+    #         test_id, display_id = _get_test_ids_(item)
+    #         if test_id in sb_config._results.keys():
+    #             sb_config._results.pop(test_id)
+
 
 # endregion pytest_deselected(items)
 
@@ -616,11 +660,18 @@ if TYPE_CHECKING:
 def webdriver_test_fixture(request: "FixtureRequest", cache):
     if not request.config.pluginmanager.has_plugin("sel4.core.plugins.webdriver"):
         from sel4.core.exceptions import ImproperlyConfigured
-        raise ImproperlyConfigured("This is not a webdriver session, cannot use this fixture")
+
+        raise ImproperlyConfigured(
+            "This is not a webdriver session, cannot use this fixture"
+        )
 
     from sel4.core.webdrivertest import WebDriverTest
+
     wd_class = WebDriverTest.from_parent(request.node, name="webdriver_test")
     wd_class.setup()
-    yield wd_class
-    wd_class.teardown()
+    needs_teardown = StashKey[bool]()
+    wd_class.stash[needs_teardown] = True
 
+    yield wd_class
+
+    wd_class.teardown()
