@@ -1,102 +1,102 @@
-"""
-    Parametrizing conditional raising:
-    Different options for test IDs:
-    Indirect parametrization: https://docs.pytest.org/en/latest/example/parametrize.html
-    Markers: https://docs.pytest.org/en/6.2.x/example/markers.html
-    writing hooks: https://docs.pytest.org/en/latest/how-to/writing_hook_functions.html
-    pytest hooks: writing
-    stash: https://docs.pytest.org/en/latest/reference/reference.html#pytest.Stash
+""" Parametrizing conditional raising:
+
+Different options for test IDs:
+Indirect parametrization: https://docs.pytest.org/en/latest/example/parametrize.html
+Markers: https://docs.pytest.org/en/6.2.x/example/markers.html
+writing hooks: https://docs.pytest.org/en/latest/how-to/writing_hook_functions.html
+pytest hooks: writing
+stash: https://docs.pytest.org/en/latest/reference/reference.html#pytest.Stash
 
 
-    Initialization Hooks
-    ====================
-    - pytest_addoption: Register argparse-style options and ini-style config values,
-                        called once at the beginning of a test run
-    - pytest_addhooks:  Called at plugin registration time to allow adding new hooks via a call to
-                        `pluginmanager.add_hookspecs(module_or_class, prefix)`
-    - pytest_configure: Allow plugins and conftest files to perform initial configuration.
-    - pytest_unconfigure: Called before test process is exited.
-    - pytest_sessionstart: Called after the Session object has been created and before
-                           performing collection and entering the run test loop.
-    - pytest_sessionfinish: Called after whole test run finished, right before returning the exit status to the system.
-    - pytest_plugin_registered: A new pytest plugin got registered.
+Initialization Hooks
+====================
+- pytest_addoption: Register argparse-style options and ini-style config values,
+                    called once at the beginning of a test run
+- pytest_addhooks:  Called at plugin registration time to allow adding new hooks via a call to
+                    `pluginmanager.add_hookspecs(module_or_class, prefix)`
+- pytest_configure: Allow plugins and conftest files to perform initial configuration.
+- pytest_unconfigure: Called before test process is exited.
+- pytest_sessionstart: Called after the Session object has been created and before
+                       performing collection and entering the run test loop.
+- pytest_sessionfinish: Called after whole test run finished, right before returning the exit status to the system.
+- pytest_plugin_registered: A new pytest plugin got registered.
 
-    Collection Hooks
-    ================
-    - pytest_collection: Perform the collection phase for the given session.
-        * pytest_collectstart:
-        * pytest_make_collect_report:
-        * pytest_exception_interact: if an interactive exception occurred
-        * pytest_itemcollected:
-        * pytest_collectreport:
-        * pytest_collection_modifyitems:
-        * pytest_collection_finish:
-    - pytest_ignore_collect: Return True to prevent considering this path for collection
-    - pytest_collect_file: Create a Collector for the given path, or None if not relevant
-    - pytest_pycollect_makemodule: Return a Module collector or None for the given path.
-    - pytest_pycollect_makeitem: Return a custom item/collector for a Python object in a module, or None.
-    - pytest_make_parametrize_id: Return a user-friendly string representation of the given val that will be
-                                  used by @pytest.mark.parametrize calls, or None if the hook doesn’t know about val.
-    - pytest_generate_tests: Generate (multiple) parametrized calls to a test function
-    - pytest_collection_modifyitems: Called after collection has been performed.
-                                    May filter or re-order the items in-place.
-    - pytest_collection_finish: Called after collection has been performed and modified.
+Collection Hooks
+================
+- pytest_collection: Perform the collection phase for the given session.
+    * pytest_collectstart:
+    * pytest_make_collect_report:
+    * pytest_exception_interact: if an interactive exception occurred
+    * pytest_itemcollected:
+    * pytest_collectreport:
+    * pytest_collection_modifyitems:
+    * pytest_collection_finish:
+- pytest_ignore_collect: Return True to prevent considering this path for collection
+- pytest_collect_file: Create a Collector for the given path, or None if not relevant
+- pytest_pycollect_makemodule: Return a Module collector or None for the given path.
+- pytest_pycollect_makeitem: Return a custom item/collector for a Python object in a module, or None.
+- pytest_make_parametrize_id: Return a user-friendly string representation of the given val that will be
+                              used by @pytest.mark.parametrize calls, or None if the hook doesn’t know about val.
+- pytest_generate_tests: Generate (multiple) parametrized calls to a test function
+- pytest_collection_modifyitems: Called after collection has been performed.
+                                May filter or re-order the items in-place.
+- pytest_collection_finish: Called after collection has been performed and modified.
 
-    RunTest Hooks
-    =============
-    - pytest_runtestloop: Perform the main runtest loop (after collection finished).
-    - pytest_runtest_protocol: Perform the runtest protocol for a single test item.
-        * ---- Setup phase ----
-        * pytest_runtest_logstart
-        * pytest_runtest_setup
-        * pytest_runtest_logreport
-        * pytest_exception_interact
-        *  ---- Call phase ----
-        * pytest_runtest_call
-        * pytest_runtest_makereport
-        * pytest_runtest_logreport
-        * pytest_exception_interact
-        * ---- Teardown phase ----
-        * pytest_runtest_teardown
-        * pytest_runtest_makereport
-        * pytest_runtest_logreport
-        * pytest_exception_interact
-        * pytest_runtest_logfinish
-    - pytest_runtest_logstart: Called at the start of running the runtest protocol for a single item.
-    - pytest_runtest_setup: Called at the end of running the runtest protocol for a single item.
-    - pytest_runtest_logreport: Called to perform the setup phase for a test item.
-    - pytest_runtest_call: Called to run the test for test item (the call phase).
-    - pytest_runtest_makereport: Called to create a `_pytest.reports.TestReport` for each of the setup,
-    - pytest_runtest_teardown: Called to perform the teardown phase for a test item.
-    - pytest_pyfunc_call: Call underlying test function.
+RunTest Hooks
+=============
+- pytest_runtestloop: Perform the main runtest loop (after collection finished).
+- pytest_runtest_protocol: Perform the runtest protocol for a single test item.
+    * ---- Setup phase ----
+    * pytest_runtest_logstart
+    * pytest_runtest_setup
+    * pytest_runtest_logreport
+    * pytest_exception_interact
+    *  ---- Call phase ----
+    * pytest_runtest_call
+    * pytest_runtest_makereport
+    * pytest_runtest_logreport
+    * pytest_exception_interact
+    * ---- Teardown phase ----
+    * pytest_runtest_teardown
+    * pytest_runtest_makereport
+    * pytest_runtest_logreport
+    * pytest_exception_interact
+    * pytest_runtest_logfinish
+- pytest_runtest_logstart: Called at the start of running the runtest protocol for a single item.
+- pytest_runtest_setup: Called at the end of running the runtest protocol for a single item.
+- pytest_runtest_logreport: Called to perform the setup phase for a test item.
+- pytest_runtest_call: Called to run the test for test item (the call phase).
+- pytest_runtest_makereport: Called to create a `_pytest.reports.TestReport` for each of the setup,
+- pytest_runtest_teardown: Called to perform the teardown phase for a test item.
+- pytest_pyfunc_call: Call underlying test function.
 
-    Reporting Hooks
-    ===============
-    - pytest_collectstart: Collector starts collecting.
-    - pytest_make_collect_report: Perform `collector.collect()` and return a CollectReport.
-    - pytest_itemcollected: We just collected a test item.
-    - pytest_collectreport: Collector finished collecting.
-    - pytest_deselected: Called for deselected test items, e.g. by keyword.
-    - pytest_report_header: Return a string or list of strings to be displayed as header info for terminal reporting.
-    - pytest_report_collectionfinish: Return a string or list of strings to be displayed after
-                                      collection has finished successfully
-    - pytest_report_teststatus: Return result-category, shortletter and verbose word for status reporting.
-    - pytest_terminal_summary: Add a section to terminal summary reporting.
-    - pytest_fixture_setup: Perform fixture setup execution.
-    - pytest_fixture_post_finalizer: Called after fixture teardown, but before the cache is cleared,
-                                     so the fixture result `fixturedef.cached_result` is still available (not None)
-    - pytest_warning_recorded: Process a warning captured by the internal pytest warnings plugin.
-    - pytest_runtest_logreport: Process the `_pytest.reports.TestReport` produced for each of the setup,
-                                call and teardown runtest phases of an item.
-    - pytest_assertrepr_compare: Return explanation for comparisons in failing assert expressions.
-    - pytest_assertion_pass: Called whenever an assertion passes.
+Reporting Hooks
+===============
+- pytest_collectstart: Collector starts collecting.
+- pytest_make_collect_report: Perform `collector.collect()` and return a CollectReport.
+- pytest_itemcollected: We just collected a test item.
+- pytest_collectreport: Collector finished collecting.
+- pytest_deselected: Called for deselected test items, e.g. by keyword.
+- pytest_report_header: Return a string or list of strings to be displayed as header info for terminal reporting.
+- pytest_report_collectionfinish: Return a string or list of strings to be displayed after
+                                  collection has finished successfully
+- pytest_report_teststatus: Return result-category, shortletter and verbose word for status reporting.
+- pytest_terminal_summary: Add a section to terminal summary reporting.
+- pytest_fixture_setup: Perform fixture setup execution.
+- pytest_fixture_post_finalizer: Called after fixture teardown, but before the cache is cleared,
+                                 so the fixture result `fixturedef.cached_result` is still available (not None)
+- pytest_warning_recorded: Process a warning captured by the internal pytest warnings plugin.
+- pytest_runtest_logreport: Process the `_pytest.reports.TestReport` produced for each of the setup,
+                            call and teardown runtest phases of an item.
+- pytest_assertrepr_compare: Return explanation for comparisons in failing assert expressions.
+- pytest_assertion_pass: Called whenever an assertion passes.
 
-    Debugging Hooks
-    ===============
-    - pytest_internalerror: Called for internal errors.
-    - pytest_keyboard_interrupt: Called for keyboard interrupt.
-    - pytest_exception_interact: Called when an exception was raised which can potentially be interactively handled.
-    - pytest_enter_pdb: Called upon pdb.set_trace().
+Debugging Hooks
+===============
+- pytest_internalerror: Called for internal errors.
+- pytest_keyboard_interrupt: Called for keyboard interrupt.
+- pytest_exception_interact: Called when an exception was raised which can potentially be interactively handled.
+- pytest_enter_pdb: Called upon pdb.set_trace().
 """
 import os
 import pathlib
@@ -388,7 +388,7 @@ def pytest_configure(config: "Config") -> None:
     # -- cleaning old cache
     from sel4.contrib.pytest.cache_helper import PytestCache
 
-    c = PytestCache(config.cache)
+    ptc = PytestCache(config.cache)
     cache_path = config.rootpath.joinpath(config.getini("cache_dir"))
     config_logger.debug(
         'Cleaning cache dir for files older than 10 days in different thread"'
@@ -396,7 +396,7 @@ def pytest_configure(config: "Config") -> None:
     from threading import Thread
 
     thread = Thread(
-        target=c.delete_cache_older_than_x_days,
+        target=ptc.delete_cache_older_than_x_days,
         args=(
             cache_path,
             -10,

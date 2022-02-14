@@ -38,7 +38,7 @@ class MultiReplace:
     """
 
     def __init__(self, sub_map, **kwargs):
-        """
+        """Multi replce strings.
 
         :param sub_map:
         :type sub_map:
