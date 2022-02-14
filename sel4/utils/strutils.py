@@ -2,12 +2,9 @@
 source : https://github.com/mahmoud/boltons/blob/master/boltons/strutils.py
 """
 import re
-from typing import (
-    Any,
-    Union, Mapping, List, Tuple, Dict, Text,
-)
+from typing import Any, Dict, List, Mapping, Text, Tuple, Union
 
-__all__ = ['import_string', 'multi_replace', 'keep_alphanumerics', 'parse_bool']
+__all__ = ["import_string", "multi_replace", "keep_alphanumerics", "parse_bool"]
 
 
 def import_string(dotted_path: str) -> Any:
@@ -18,7 +15,7 @@ def import_string(dotted_path: str) -> Any:
     from importlib import import_module
 
     try:
-        module_path, class_name = dotted_path.strip(' ').rsplit('.', 1)
+        module_path, class_name = dotted_path.strip(" ").rsplit(".", 1)
     except ValueError as e:
         raise ImportError(f'"{dotted_path}" doesn\'t look like a module path') from e
 
@@ -26,7 +23,9 @@ def import_string(dotted_path: str) -> Any:
     try:
         return getattr(module, class_name)
     except AttributeError as e:
-        raise ImportError(f'Module "{module_path}" does not define a "{class_name}" attribute') from e
+        raise ImportError(
+            f'Module "{module_path}" does not define a "{class_name}" attribute'
+        ) from e
 
 
 class MultiReplace:
@@ -75,8 +74,8 @@ class MultiReplace:
         >>> new == 'The zoo bar hat ate a kraken'
         """
         options = {
-            'regex': False,
-            'flags': 0,
+            "regex": False,
+            "flags": 0,
         }
         options.update(kwargs)
         self.group_map = {}
@@ -86,27 +85,21 @@ class MultiReplace:
             sub_map = sub_map.items()
 
         for idx, vals in enumerate(sub_map):
-            group_name = 'group{0}'.format(idx)
+            group_name = "group{0}".format(idx)
             if isinstance(vals[0], (str, bytes)):
                 # If we're not treating input strings like a regex, escape it
-                if not options['regex']:
+                if not options["regex"]:
                     exp = re.escape(vals[0])
                 else:
                     exp = vals[0]
             else:
                 exp = vals[0].pattern
 
-            regex_values.append(
-                '(?P<{0}>{1})'.format(
-                    group_name,
-                    exp
-                )
-            )
+            regex_values.append("(?P<{0}>{1})".format(group_name, exp))
             self.group_map[group_name] = vals[1]
 
         self.combined_pattern = re.compile(
-            '|'.join(regex_values),
-            flags=options['flags']
+            "|".join(regex_values), flags=options["flags"]
         )
 
     def _get_value(self, match):
@@ -124,7 +117,9 @@ class MultiReplace:
         return self.combined_pattern.sub(self._get_value, text)
 
 
-def multi_replace(text: Text, sub_map: Union[List[Tuple[Text, Text]], Dict[Text, Text]], **kwargs):
+def multi_replace(
+    text: Text, sub_map: Union[List[Tuple[Text, Text]], Dict[Text, Text]], **kwargs
+):
     """
     Shortcut function to invoke MultiReplace in a single call.
     """
@@ -134,9 +129,9 @@ def multi_replace(text: Text, sub_map: Union[List[Tuple[Text, Text]], Dict[Text,
 
 def keep_alphanumerics(text: Text, flag: int) -> Text:
     if flag == re.UNICODE:
-        return re.sub(r'[\W_]+', u'', text, flags=re.UNICODE)
+        return re.sub(r"[\W_]+", "", text, flags=re.UNICODE)
     if flag == re.LOCALE:
-        return re.sub(r'[\W_]+', '', text, flags=re.LOCALE)
+        return re.sub(r"[\W_]+", "", text, flags=re.LOCALE)
     raise ValueError(f"flag {str(flag)} is not implemented in this function")
 
 
@@ -148,9 +143,9 @@ def strtobool(val: str) -> int:
     'val' is anything else.
     """
     val = val.lower()
-    if val in ('y', 'yes', 't', 'true', 'on', '1'):
+    if val in ("y", "yes", "t", "true", "on", "1"):
         return 1
-    elif val in ('n', 'no', 'f', 'false', 'off', '0'):
+    elif val in ("n", "no", "f", "false", "off", "0"):
         return 0
     else:
         raise ValueError("invalid truth value %r" % (val,))

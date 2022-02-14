@@ -1,9 +1,8 @@
 import os
 import pathlib
-from typing import Generator, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Generator, Optional
 
 from sel4.utils.retries import retry
-
 
 __all__ = ["mkdir_p", "wait_folder_to_be_deleted", "iter_find_files"]
 
@@ -36,10 +35,10 @@ def wait_folder_to_be_deleted(folder: pathlib.Path):
 
 
 def iter_find_files(
-        directory: pathlib.Path,
-        patterns: 'ListStr',
-        ignored: Optional['ListStr'] = None,
-        include_dirs: bool = False
+    directory: pathlib.Path,
+    patterns: "ListStr",
+    ignored: Optional["ListStr"] = None,
+    include_dirs: bool = False,
 ) -> Generator[pathlib.Path, None, None]:
     """
     Returns a generator that yields file paths under a *directory* matching *patterns*
@@ -62,19 +61,20 @@ def iter_find_files(
 
     .. _glob: https://en.wikipedia.org/wiki/Glob_%28programming%29
     """
-    import re
     import fnmatch
+    import re
+
     basestring = (str, bytes)
     if isinstance(patterns, basestring):
         patterns = [patterns]
 
-    pats_re = re.compile('|'.join([fnmatch.translate(p) for p in patterns]))
+    pats_re = re.compile("|".join([fnmatch.translate(p) for p in patterns]))
 
     if not ignored:
         ignored = []
     elif isinstance(ignored, basestring):
         ignored = [ignored]
-    ign_re = re.compile('|'.join([fnmatch.translate(p) for p in ignored]))
+    ign_re = re.compile("|".join([fnmatch.translate(p) for p in ignored]))
 
     for root, dirs, files in os.walk(str(directory)):
         if include_dirs:

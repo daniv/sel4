@@ -4,12 +4,12 @@
 import random
 import time
 from functools import partial, wraps
-from typing import Callable, Optional, Tuple, Type, ParamSpecArgs, ParamSpecKwargs
+from typing import Callable, Optional, ParamSpecArgs, ParamSpecKwargs, Tuple, Type
 
 # sys.maxint / 2, since Python 3.2 doesn't have a sys.maxint...
-from pydantic import validate_arguments, Field, PositiveInt, PositiveFloat
+from pydantic import Field, PositiveFloat, PositiveInt, validate_arguments
 
-from sel4.utils.typeutils import OptionalFloat, AnyCallable
+from sel4.utils.typeutils import AnyCallable, OptionalFloat
 
 _MAX_WAIT = 1_073_741_823
 
@@ -18,14 +18,14 @@ __all__ = ["retry", "retry_call"]
 
 
 def __retry_internal(
-        func: Callable,
-        exceptions: Type[Exception] | Tuple[Type[Exception]],
-        tries=-1,
-        delay=0.0,
-        timeout_ms=_MAX_WAIT,
-        max_delay: OptionalFloat = None,
-        backoff=1.0,
-        jitter=0.0,
+    func: Callable,
+    exceptions: Type[Exception] | Tuple[Type[Exception]],
+    tries=-1,
+    delay=0.0,
+    timeout_ms=_MAX_WAIT,
+    max_delay: OptionalFloat = None,
+    backoff=1.0,
+    jitter=0.0,
 ):
     """
     Executes a function and retries it if it failed.
@@ -71,13 +71,14 @@ def __retry_internal(
 
 @validate_arguments
 def retry(
-        exceptions: Type[Exception] | Tuple[Type[Exception]] = Field(default_factory=Exception),
-        tries: int = Field(default=-1),
-        delay: float = Field(default=0, ge=0),
-        max_delay: OptionalFloat = Field(default=None, ge=0.0),
-        timeout_ms: PositiveInt = Field(default=_MAX_WAIT),
-        backoff: PositiveFloat = Field(default=1.0),
-        jitter: PositiveFloat = Field(default=0.0),
+    exceptions: Type[Exception]
+    | Tuple[Type[Exception]] = Field(default_factory=Exception),
+    tries: int = Field(default=-1),
+    delay: float = Field(default=0, ge=0),
+    max_delay: OptionalFloat = Field(default=None, ge=0.0),
+    timeout_ms: PositiveInt = Field(default=_MAX_WAIT),
+    backoff: PositiveFloat = Field(default=1.0),
+    jitter: PositiveFloat = Field(default=0.0),
 ):
     """Returns a retry decorator.
 
@@ -104,14 +105,14 @@ def retry(
             max_delay=max_delay,
             timeout_ms=timeout_ms,
             backoff=backoff,
-            jitter=jitter
+            jitter=jitter,
         )
 
     return retry_decorator
 
 
 def decorator(caller):
-    """ Turns caller into a decorator.
+    """Turns caller into a decorator.
     Unlike decorator module, function signature is not preserved.
     :param caller: caller(f, *args, **kwargs)
     """
@@ -140,15 +141,15 @@ def decorator(caller):
 
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def retry_call(
-        func: AnyCallable,
-        f_args: Optional[ParamSpecArgs] = None,
-        f_kwargs: Optional[ParamSpecKwargs] = None,
-        exceptions: Type[Exception] | Tuple[Type[Exception]] = Exception,
-        tries: int = -1,
-        delay: float = 0,
-        max_delay: OptionalFloat = None,
-        backoff=1.0,
-        jitter=0.0,
+    func: AnyCallable,
+    f_args: Optional[ParamSpecArgs] = None,
+    f_kwargs: Optional[ParamSpecKwargs] = None,
+    exceptions: Type[Exception] | Tuple[Type[Exception]] = Exception,
+    tries: int = -1,
+    delay: float = 0,
+    max_delay: OptionalFloat = None,
+    backoff=1.0,
+    jitter=0.0,
 ):
     """
     Calls a function and re-executes it if it failed.
@@ -169,5 +170,11 @@ def retry_call(
     kwargs = f_kwargs if f_kwargs else dict()
     return __retry_internal(
         partial(func, *args, **kwargs),
-        exceptions, tries, delay, _MAX_WAIT, max_delay, backoff, jitter
+        exceptions,
+        tries,
+        delay,
+        _MAX_WAIT,
+        max_delay,
+        backoff,
+        jitter,
     )

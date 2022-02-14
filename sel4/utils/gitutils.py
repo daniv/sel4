@@ -1,7 +1,7 @@
 import functools
 import os
 import subprocess
-from datetime import timezone, datetime
+from datetime import datetime, timezone
 
 
 @functools.lru_cache()
@@ -13,13 +13,16 @@ def get_git_changeset():
     """
     # Repository may not be found if __file__ is undefined, e.g. in a frozen
     # module.
-    if '__file__' not in globals():
+    if "__file__" not in globals():
         return None
     repo_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     git_log = subprocess.run(
-        'git log --pretty=format:%ct --quiet -1 HEAD',
-        stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-        shell=True, cwd=repo_dir, universal_newlines=True,
+        "git log --pretty=format:%ct --quiet -1 HEAD",
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        shell=True,
+        cwd=repo_dir,
+        universal_newlines=True,
     )
     timestamp = git_log.stdout
     tz = timezone.utc
@@ -27,4 +30,4 @@ def get_git_changeset():
         timestamp = datetime.fromtimestamp(int(timestamp), tz=tz)
     except ValueError:
         return None
-    return timestamp.strftime('%Y%m%d%H%M%S')
+    return timestamp.strftime("%Y%m%d%H%M%S")

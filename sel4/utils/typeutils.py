@@ -1,27 +1,10 @@
 from decimal import Decimal
-from decimal import Decimal
 from os import PathLike
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    Callable,
-    ClassVar,
-    Dict,
-    FrozenSet,
-    List,
-    Optional,
-    Pattern,
-    Set,
-    Tuple,
-    Type,
-    TypeVar,
-    overload,
-    Generator,
-    Callable as TypingCallable, ForwardRef,
-)
-from typing_extensions import (
-    Literal
-)
+from typing import Any
+from typing import Callable as TypingCallable
+from typing import Dict, Generator, List, Optional, Set, Tuple
+
+from typing_extensions import Literal
 
 NoneStr = Optional[str]
 NoneBytes = Optional[bytes]
