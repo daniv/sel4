@@ -6,25 +6,22 @@ from typing_extensions import Literal
 from sel4 import env
 from sel4.core import constants
 
-
 # this variable will be set during bootstrap
 PROJECT_ROOT = pathlib.Path(os.environ["PROJECT_ROOT"])
 
 # Absolute filesystem path to the directory that will hold resources
-RESOURCES_ROOT = PROJECT_ROOT.joinpath('resources')
+RESOURCES_ROOT = PROJECT_ROOT.joinpath("resources")
 
 # Folder that stores the logs, screenshots, reports and all the information on run-time.
-EXECUTION_ROOT = PROJECT_ROOT.joinpath('out')
+EXECUTION_ROOT = PROJECT_ROOT.joinpath("out")
 
-PROJECT_PATHS = [
-    ('LAST_EXECUTION', EXECUTION_ROOT.joinpath('pytest_exec'))
-]
+PROJECT_PATHS = [("LAST_EXECUTION", EXECUTION_ROOT.joinpath("pytest_exec"))]
 
-CACHE_NAME = 'sel4'
+CACHE_NAME = "sel4"
 
 WEBDRIVER_MANAGER_PATHS = [
-    ('downloads', PROJECT_ROOT.joinpath('webdrivers/downloads')),
-    ('executables', PROJECT_ROOT.joinpath('webdrivers/bin')),
+    ("downloads", PROJECT_ROOT.joinpath("webdrivers/downloads")),
+    ("executables", PROJECT_ROOT.joinpath("webdrivers/bin")),
 ]
 
 SUPPORTED_BROWSERS = Literal[
@@ -32,7 +29,7 @@ SUPPORTED_BROWSERS = Literal[
     constants.Browser.FIREFOX,
     constants.Browser.SAFARI,
     constants.Browser.EDGE,
-    constants.Browser.REMOTE
+    constants.Browser.REMOTE,
 ]
 
 SWITCH_TO_NEW_TABS_ON_CLICK = env("SWITCH_TO_NEW_TABS_ON_CLICK", bool, True)
@@ -49,7 +46,9 @@ HEADLESS_START_HEIGHT = 1880
 DISABLE_CSP_ON_FIREFOX = env("DISABLE_CSP_ON_FIREFOX", bool, True)
 DISABLE_CSP_ON_CHROME = env("DISABLE_CSP_ON_CHROME", bool, False)
 # If True and --proxy=IP_ADDRESS:PORT is invalid, then error immediately.
-RAISE_INVALID_PROXY_STRING_EXCEPTION = env("RAISE_INVALID_PROXY_STRING_EXCEPTION", bool, True)
+RAISE_INVALID_PROXY_STRING_EXCEPTION = env(
+    "RAISE_INVALID_PROXY_STRING_EXCEPTION", bool, True
+)
 
 # This adds wait_for_ready_state_complete() after various browser actions.
 # Setting this to True may improve reliability at the cost of speed.

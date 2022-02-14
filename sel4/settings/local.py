@@ -6,8 +6,8 @@ from .base import *  # noqa F401
 # CORE
 ########################################################################################################################
 
-EXECUTION_ROOT = PROJECT_ROOT.joinpath("out").joinpath("local")
-RESOURCES_FOLDER = PROJECT_ROOT.joinpath("resources/local")
+EXECUTION_ROOT = PROJECT_ROOT.joinpath("out").joinpath("local")  # noqa F405
+RESOURCES_FOLDER = PROJECT_ROOT.joinpath("resources/local")  # noqa F405
 PROJECT_PATHS = [
     ("ARCHIVES", EXECUTION_ROOT.joinpath("archives")),
     ("LAST_EXECUTION", EXECUTION_ROOT.joinpath("pytest_exec")),
@@ -25,6 +25,6 @@ HOME_URL = ""
 # LOCAL SETTINGS - SECRETS
 ########################################################################################################################
 try:
-    from kiru.settings.local_settings import *
+    from kiru.settings.local_settings import *  # noqa: F401
 except ImportError:
     pass
