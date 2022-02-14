@@ -206,8 +206,9 @@ def next_char(input_iter):
 
 
 def walk_to_end(ch, input_iter):
-    """
-    The iterator is currently inside a capturing group. Walk to the close of
+    """The iterator is currently inside a capturing group.
+
+    Walk to the close of
     this group, skipping over any nested groups and handling escaped
     parentheses correctly.
     """
