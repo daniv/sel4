@@ -3,29 +3,27 @@ import pathlib
 import sys
 from abc import ABC, abstractmethod
 from functools import cached_property
-from typing import (
-    Optional,
-    Tuple,
-    Type,
-    TYPE_CHECKING
-)
+from typing import TYPE_CHECKING, Optional, Tuple, Type
+
 #
 import urllib3
 import webdrivermanager
 from loguru import logger
-from pytest import StashKey, Config
+from pytest import StashKey
+
 from sel4.conf import settings
+
 from ...utils.regex_helper import _lazy_re_compile
 from ..runtime import runtime_store
 
 if TYPE_CHECKING:
-    from webdrivermanager import WebDriverManagerBase
-    from rich.repr import Result
     from _pytest.config import Config
+    from rich.repr import Result
+    from webdrivermanager import WebDriverManagerBase
 #
 #
 urllib3.disable_warnings()
-re_version_extractor = _lazy_re_compile(r'.*?([\d.]+).*?')
+re_version_extractor = _lazy_re_compile(r".*?([\d.]+).*?")
 
 
 class DriverDownloaderBase(ABC):
@@ -35,17 +33,20 @@ class DriverDownloaderBase(ABC):
     """
 
     def __init__(
-            self, extract_folder: pathlib.Path, download_folder: pathlib.Path,
-            manager: Type['WebDriverManagerBase']
+        self,
+        extract_folder: pathlib.Path,
+        download_folder: pathlib.Path,
+        manager: Type["WebDriverManagerBase"],
     ):
         import logging
+
         logging.getLogger("requests").setLevel(logging.ERROR)
         self.extract_folder = extract_folder
         self.download_folder = download_folder
         self.driver_manager_class = manager
         p, a = self.platform_architecture
         self.driver_name = self.driver_manager_class.driver_filenames.get(p)
-        self.setup_logger = logger.bind(task="setup".rjust(10, ' '))
+        self.setup_logger = logger.bind(task="setup".rjust(10, " "))
         # self.setup_logger.debug("Current platform/architecture is {platform}/{bits}bit", platform=p, bits=a)
         # self.setup_logger.debug("download folder: {}", self.download_folder)
         # self.setup_logger.debug("sym-link folder: {}", self.extract_folder)
@@ -56,43 +57,46 @@ class DriverDownloaderBase(ABC):
         self.driver_manager_inst = manager(
             download_root=self.download_folder,
             link_path=self.extract_folder,
-            os_name=p, bitness=a,
+            os_name=p,
+            bitness=a,
         )
 
     @cached_property
     def platform_architecture(self) -> Tuple[str, str]:
-        """ get from sys the sys.platform property and split the result to platfom and architecture
+        """get from sys the sys.platform property and split the result to platfom and architecture
         :return: a tuple containing
         """
-        if sys.platform.startswith('linux') and sys.maxsize > 2 ** 32:
-            pl = 'linux'
-            arch = '64'
+        if sys.platform.startswith("linux") and sys.maxsize > 2**32:
+            pl = "linux"
+            arch = "64"
             self._is_linux = True
-        elif sys.platform == 'darwin':
-            pl = 'mac'
-            arch = '64'
+        elif sys.platform == "darwin":
+            pl = "mac"
+            arch = "64"
             self._is_mac = True
-        elif sys.platform.startswith('win'):
-            pl = 'win'
-            arch = '32'
+        elif sys.platform.startswith("win"):
+            pl = "win"
+            arch = "32"
             self._is_win = True
         else:
-            raise RuntimeError('Could not determine chromedriver download URL for this platform.')
+            raise RuntimeError(
+                "Could not determine chromedriver download URL for this platform."
+            )
         return pl, arch
 
     @property
     def download_root(self) -> pathlib.Path:
-        """ Returns the location of webdriver is downloaded """
+        """Returns the location of webdriver is downloaded"""
         return pathlib.Path(self.driver_manager_inst.download_root)
 
     @cached_property
     def latest_version(self) -> str:
-        """ Returns the latest version of chromedriver """
+        """Returns the latest version of chromedriver"""
         return self.driver_manager_inst.get_latest_version()
 
     @cached_property
     def compatible_version(self) -> str:
-        """ Returns the compatible version compared to Google Chrome installation """
+        """Returns the compatible version compared to Google Chrome installation"""
         return self.driver_manager_inst.get_compatible_version()
 
     @cached_property
@@ -126,19 +130,27 @@ class DriverDownloaderBase(ABC):
         ...
 
     def need_to_download_driver(self, executable: pathlib.Path) -> bool:
-        """ Determines if a new fresh chrome driver needs to be downloaded """
+        """Determines if a new fresh chrome driver needs to be downloaded"""
         from packaging.version import parse
+
         try:
             import subprocess
+
             req = parse(self.compatible_version)
-            version = subprocess.check_output([str(executable), '-v'])
-            import re
-            version = re_version_extractor.match(version.decode('utf-8'))[1]
+            version = subprocess.check_output([str(executable), "-v"])
+
+            version = re_version_extractor.match(version.decode("utf-8"))[1]
             actual = parse(version)
-            if actual.major == req.major and actual.minor == req.minor and actual.micro == req.micro:
+            if (
+                actual.major == req.major
+                and actual.minor == req.minor
+                and actual.micro == req.micro
+            ):
                 return False
         except Exception:
-            self.setup_logger.opt(exception=True).info("sym-link file  : {}", self.driver_name)
+            self.setup_logger.opt(exception=True).info(
+                "sym-link file  : {}", self.driver_name
+            )
             return True
         return True
 
@@ -149,9 +161,11 @@ class DriverDownloaderBase(ABC):
         """
         download_and_install = self.driver_manager_inst.download_and_install(
             version=settings.WEB_DRIVER_MANAGER_VERSION_MODE,
-            show_progress_bar=settings.WEB_DRIVER_MANAGER_SHOW_PROGRESS
+            show_progress_bar=settings.WEB_DRIVER_MANAGER_SHOW_PROGRESS,
         )
-        return pathlib.Path(download_and_install[0]), pathlib.Path(download_and_install[1])
+        return pathlib.Path(download_and_install[0]), pathlib.Path(
+            download_and_install[1]
+        )
 
     def __rich_repr__(self) -> "Result":
         yield self.driver_name
@@ -167,13 +181,15 @@ class DriverDownloaderBase(ABC):
 
 
 class ChromeDriverDownloader(DriverDownloaderBase):
-    def __init__(self, config: 'Config'):
+    def __init__(self, config: "Config"):
         paths = dict(settings.WEBDRIVER_MANAGER_PATHS)
-        download_folder: pathlib.Path = paths.get('downloads')
-        extract_folder: pathlib.Path = paths.get('executables').joinpath('chrome')
-        super().__init__(extract_folder, download_folder, webdrivermanager.ChromeDriverManager)
+        download_folder: pathlib.Path = paths.get("downloads")
+        extract_folder: pathlib.Path = paths.get("executables").joinpath("chrome")
+        super().__init__(
+            extract_folder, download_folder, webdrivermanager.ChromeDriverManager
+        )
 
-        config.addinivalue_line('used_packs', webdrivermanager.get_version())
+        config.addinivalue_line("used_packs", webdrivermanager.get_version())
 
     def install(self):
         try:
@@ -188,7 +204,7 @@ class ChromeDriverDownloader(DriverDownloaderBase):
             raise
 
     def _install_chrome_webdriver(self):
-        """ install the webdriver, if required it will download from chrome URL"""
+        """install the webdriver, if required it will download from chrome URL"""
 
         do_install = True
         executable = self.extract_folder.joinpath(self.driver_name)
@@ -197,71 +213,83 @@ class ChromeDriverDownloader(DriverDownloaderBase):
 
         if executable.exists() and executable.is_symlink():
             # -- determine if a new webdriver installation is required
-            self.setup_logger.info('Validating current version of: {}', self.driver_name)
+            self.setup_logger.info(
+                "Validating current version of: {}", self.driver_name
+            )
             do_install = self.need_to_download_driver(executable)
         if do_install:
-            self.setup_logger.info('WebDriver plugin needs to '
-                                   'download and install binary webdriver on /chrome/chromedriver')
+            self.setup_logger.info(
+                "WebDriver plugin needs to "
+                "download and install binary webdriver on /chrome/chromedriver"
+            )
             executable.unlink(missing_ok=True)
             self.setup_logger.info(
-                'Downloading chrome webdriver from: {}', webdrivermanager.ChromeDriverManager.chrome_driver_base_url
+                "Downloading chrome webdriver from: {}",
+                webdrivermanager.ChromeDriverManager.chrome_driver_base_url,
             )
             downloaded_file, symlink_file = self.download_and_install()
-            self.setup_logger.info('Executable file was copied to: {}', symlink_file)
+            self.setup_logger.info("Executable file was copied to: {}", symlink_file)
 
     def is_webdriver_on_path(self) -> bool:
         paths = os.environ["PATH"].split(os.pathsep)
         for path in paths:
-            if (not self._is_win) and os.path.exists(f'{path}/{self.driver_name}'):
+            if (not self._is_win) and os.path.exists(f"{path}/{self.driver_name}"):
                 return True
-            elif self._is_win and os.path.exists(f'{path}/{self.driver_name}'):
+            elif self._is_win and os.path.exists(f"{path}/{self.driver_name}"):
                 return True
         return False
 
     def add_chrome_to_environment_path(self):
-        """ Adds chromedriver to `os.environ[PATH]` """
+        """Adds chromedriver to `os.environ[PATH]`"""
         bin_folder_str = str(self.extract_folder)
-        path_separator = ':'
-        if sys.platform.startswith('win'):
-            path_separator = ';'
-        if 'PATH' not in os.environ:
-            os.environ.setdefault('PATH', bin_folder_str)
-        elif bin_folder_str not in os.environ['PATH']:
+        path_separator = ":"
+        if sys.platform.startswith("win"):
+            path_separator = ";"
+        if "PATH" not in os.environ:
+            os.environ.setdefault("PATH", bin_folder_str)
+        elif bin_folder_str not in os.environ["PATH"]:
             env_path = f'{bin_folder_str}{path_separator}{os.environ.get("PATH")}'
-            os.environ['PATH'] = env_path
+            os.environ["PATH"] = env_path
 
 
 class GeckoDriverDownloader(DriverDownloaderBase):
-
     def __init__(self):
         paths = dict(settings.WEBDRIVER_MANAGER_PATHS)
-        download_folder: pathlib.Path = paths.get('downloads')
-        extract_folder: pathlib.Path = paths.get('executables').joinpath('gecko')
-        super().__init__(extract_folder, download_folder, webdrivermanager.ChromeDriverManager)
+        download_folder: pathlib.Path = paths.get("downloads")
+        extract_folder: pathlib.Path = paths.get("executables").joinpath("gecko")
+        super().__init__(
+            extract_folder, download_folder, webdrivermanager.ChromeDriverManager
+        )
 
         from sel4.core import runtime
+
         pytestconfig = getattr(runtime, "pytestconfig")
-        pytestconfig.addinivalue_line('used_packs', webdrivermanager.get_version())
+        pytestconfig.addinivalue_line("used_packs", webdrivermanager.get_version())
 
     def _install_gecko_webdriver(self):
-        """ install the webdriver, if required it will download from chrome URL"""
+        """install the webdriver, if required it will download from chrome URL"""
 
         do_install = True
         executable = self.extract_folder.joinpath(self.driver_name)
-        setattr(kiru_config, "gecko_executable", executable)
+        setattr(conf, "gecko_executable", executable)
         if executable.exists() and executable.is_symlink():
             # -- determine if a new webdriver installation is required
-            self.setup_logger.info('Validating current version of: {}', self.driver_name)
+            self.setup_logger.info(
+                "Validating current version of: {}", self.driver_name
+            )
             do_install = self.need_to_download_driver(executable)
         if do_install:
-            self.setup_logger.info('WebDriver plugin needs to '
-                                   'download and install binary webdriver on /gecko/geckodriver')
+            self.setup_logger.info(
+                "WebDriver plugin needs to "
+                "download and install binary webdriver on /gecko/geckodriver"
+            )
             executable.unlink(missing_ok=True)
             self.setup_logger.info(
-                'Downloading gecko webdriver from: {}', webdrivermanager.GeckoDriverManager.chrome_driver_base_url
+                "Downloading gecko webdriver from: {}",
+                webdrivermanager.GeckoDriverManager.chrome_driver_base_url,
             )
             downloaded_file, symlink_file = self.download_and_install()
-            self.setup_logger.info('Executable file was copied to: {}', symlink_file)
+            self.setup_logger.info("Executable file was copied to: {}", symlink_file)
 
     def install(self):
         try:
@@ -277,5 +305,3 @@ class GeckoDriverDownloader(DriverDownloaderBase):
 
     def is_webdriver_on_path(self) -> bool:
         pass
-
-

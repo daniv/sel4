@@ -1,6 +1,3 @@
-from .metadata import print_intro_table
-from .metadata import collect_metadata
-
+from .metadata import collect_metadata, print_intro_table
 
 __all__ = ["print_intro_table", "collect_metadata"]
-

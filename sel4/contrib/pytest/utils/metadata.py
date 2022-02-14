@@ -4,10 +4,10 @@ from ipaddress import IPv4Address, IPv6Address
 from typing import Optional
 
 from pydantic import BaseModel
+from pytest import Config
 
 from sel4.core import constants
 from sel4.utils.typeutils import DictStrAny
-from pytest import Config
 
 
 class Metadata(BaseModel):
@@ -31,18 +31,21 @@ def collect_metadata(config: Config, print_metadata=True) -> Metadata:
         "COMPUTER_NAME": os.environ.get("COMPUTERNAME", "N/A"),
         "VIRTUAL_ENV": os.environ.get("VIRTUAL_ENV", "N/A"),
     }
-    import pkg_resources
     import platform
-    arch, os_arch = platform.architecture()
-    pluggy_version = pkg_resources.get_distribution('pluggy').version
-    httpx_version = pkg_resources.get_distribution('httpx').version
-    pytest_version = pkg_resources.get_distribution('pytest').version
-    selenium_version = pkg_resources.get_distribution('selenium').version
-    py_version = pkg_resources.get_distribution('py').version
 
+    import pkg_resources
+
+    arch, os_arch = platform.architecture()
+    pluggy_version = pkg_resources.get_distribution("pluggy").version
+    httpx_version = pkg_resources.get_distribution("httpx").version
+    pytest_version = pkg_resources.get_distribution("pytest").version
+    selenium_version = pkg_resources.get_distribution("selenium").version
+    py_version = pkg_resources.get_distribution("py").version
+
+    from sel4.utils.envutils import env
     from sel4.utils.gitutils import get_git_changeset
     from sel4.utils.netutils import current_ip_address
-    from sel4.utils.envutils import env
+
     metadata = Metadata(
         env=envs,
         git_changeset=get_git_changeset(),
@@ -58,7 +61,7 @@ def collect_metadata(config: Config, print_metadata=True) -> Metadata:
             "pluggy": pluggy_version,
             "selenium": selenium_version,
             "httpx": httpx_version,
-        }
+        },
     )
     if print_metadata:
         print_intro_table(metadata)
@@ -74,11 +77,11 @@ def print_intro_table(metadata: Metadata):
         caption="Versions used by the framework",
         min_width=80,
         box=box.ROUNDED,
-        style='pale_green3',
-        title_justify='center',
-        caption_justify='center',
+        style="pale_green3",
+        title_justify="center",
+        caption_justify="center",
         highlight=True,
-        show_header=True
+        show_header=True,
     )
     _table.add_column("Item")
     _table.add_column("Value")
@@ -92,4 +95,5 @@ def print_intro_table(metadata: Metadata):
         _table.add_row(f"{k} version", v)
 
     from rich import get_console
+
     get_console().print(_table)

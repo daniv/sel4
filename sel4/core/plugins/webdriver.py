@@ -12,16 +12,17 @@ import os
 import sys
 from typing import TYPE_CHECKING
 
-import pytest
 from loguru import logger
+from pytest import StashKey, hookimpl, mark
+from selenium.webdriver.chrome.webdriver import WebDriver
 
 from sel4.conf import settings
-from sel4.core import constants
-from sel4.core.exceptions import ImproperlyConfigured
+
+from ..exceptions import ImproperlyConfigured
+from ..runtime import runtime_store
 
 if TYPE_CHECKING:
-    from _pytest.config import Config
-    from _pytest.config.argparsing import Parser
+    from pytest import Config, Parser
 
 
 ########################################################################################################################
@@ -31,7 +32,7 @@ if TYPE_CHECKING:
 # region PYTEST PLUGINS
 
 
-@pytest.hookimpl(tryfirst=True)
+@hookimpl(tryfirst=True)
 def pytest_addoption(parser: "Parser") -> None:
     """
      This plugin adds the following command-line options to pytest:
@@ -197,7 +198,7 @@ def pytest_addoption(parser: "Parser") -> None:
     )
 
 
-@pytest.mark.trylast
+@mark.trylast
 def pytest_configure(config: "Config"):
     """
     Determined if we should load the webdriver plugin
@@ -292,7 +293,9 @@ def pytest_configure(config: "Config"):
     # sb_config.devtools = config.getoption("devtools")
     # sb_config.reuse_session = config.getoption("reuse_session")
     # sb_config.crumbs = config.getoption("crumbs")
-    # sb_config.shared_driver = None  # The default driver for session reuse
+    from sel4.core.runtime import shared_driver
+    config_logger.debug("Setting StashKey[WebDriver] for shared_driver to None")
+    runtime_store[shared_driver] = None
     # sb_config.maximize_option = config.getoption("maximize_option")
     # sb_config.save_screenshot = config.getoption("save_screenshot")
     # sb_config.visual_baseline = config.getoption("visual_baseline")
