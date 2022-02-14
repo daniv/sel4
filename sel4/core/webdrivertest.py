@@ -148,7 +148,7 @@ class WebDriverTest(BasePytestUnitTestCase):
         return js_utils.is_in_frame(self.driver)
 
     def is_chromium(self):
-        """ Return True if the browser is Chrome, Edge, or Opera. """
+        """Return True if the browser is Chrome, Edge, or Opera."""
         self.__check_scope__()
         chromium = False
         browser_name = self.driver.capabilities["browserName"]
@@ -157,7 +157,7 @@ class WebDriverTest(BasePytestUnitTestCase):
         return chromium
 
     def ad_block(self):
-        """ Block ads that appear on the current web page. """
+        """Block ads that appear on the current web page."""
         ...
 
     def set_time_limit(self, time_limit: OptionalInt = None):
@@ -270,6 +270,7 @@ class WebDriverTest(BasePytestUnitTestCase):
             ...
 
         from sel4.core.runtime import start_time_ms, timeout_changed
+
         if runtime_store.get(timeout_changed, False):
             ...
 
@@ -283,6 +284,7 @@ class WebDriverTest(BasePytestUnitTestCase):
             ...
 
         from sel4.core.runtime import shared_driver
+
         has_url = False
         if self._reuse_session:
             if runtime_store.get(shared_driver, None):
@@ -363,7 +365,7 @@ class WebDriverTest(BasePytestUnitTestCase):
 
     @validate_arguments
     def open(self, url: HttpUrl | FileUrl):
-        """ Navigates the current browser window to the specified page. """
+        """Navigates the current browser window to the specified page."""
         self.__check_scope__()
         self.__check_browser__()
         pre_action_url, httpx_url = self.driver.current_url
@@ -399,7 +401,7 @@ class WebDriverTest(BasePytestUnitTestCase):
         self.switch_to_window(0)
 
     def switch_to_default_driver(self):
-        """ Sets driver to the default/original driver. """
+        """Sets driver to the default/original driver."""
         self.__check_scope__()
         self.driver = self._default_driver
         if self.driver in self.__driver_browser_map:
@@ -432,8 +434,7 @@ class WebDriverTest(BasePytestUnitTestCase):
                 "%s OR "
                 "%s "
                 "See SeleniumBase/examples/sample_cap_file_BS.py "
-                "and SeleniumBase/examples/sample_cap_file_SL.py"
-                % (browserstack_ref, sauce_labs_ref)
+                "and SeleniumBase/examples/sample_cap_file_SL.py" % (browserstack_ref, sauce_labs_ref)
             )
 
         new_driver = get_driver(launcher_data)
@@ -479,8 +480,8 @@ class WebDriverTest(BasePytestUnitTestCase):
 
     @validate_arguments
     def wait_for_ready_state_complete(self, timeout: OptionalInt = None):
-        """ Waits for the "readyState" of the page to be "complete".
-            Returns True when the method completes.
+        """Waits for the "readyState" of the page to be "complete".
+        Returns True when the method completes.
         """
         self.__check_scope__()
         self.__check_browser__()
@@ -493,7 +494,7 @@ class WebDriverTest(BasePytestUnitTestCase):
         return True
 
     def wait_for_angularjs(self, timeout: OptionalInt = None, **kwargs):
-        """ Waits for Angular components of the page to finish loading.
+        """Waits for Angular components of the page to finish loading.
         Returns True when the method completes.
         """
         self.__check_scope__()
@@ -514,5 +515,3 @@ class WebDriverTest(BasePytestUnitTestCase):
             pass
 
     # endregion WebDriver Actions
-
-

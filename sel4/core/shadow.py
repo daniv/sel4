@@ -13,9 +13,7 @@ from ..utils.retries import retry_call
 from . import constants, page_actions
 
 
-def _fail_if_invalid_shadow_selector_usage(
-    selector: str = Field(default="", strict=True, min_length=1)
-):
+def _fail_if_invalid_shadow_selector_usage(selector: str = Field(default="", strict=True, min_length=1)):
     ...
 
 
@@ -85,8 +83,7 @@ def get_shadow_element(
                             "(Current driver version is: %s)"
                             "\n(Minimum driver version is: 96.*)"
                             "\nTo upgrade, run this:"
-                            '\n"seleniumbase install chromedriver %s"'
-                            % (chromedriver_version, upgrade_to)
+                            '\n"seleniumbase install chromedriver %s"' % (chromedriver_version, upgrade_to)
                         )
                         raise Exception(message)
                 if timeout != 0.1:  # Skip wait for special 0.1 (See above)
@@ -114,14 +111,10 @@ def get_shadow_element(
                     delay=0.5,
                     backoff=2,
                 )
-                shadow_root = self.execute_script(
-                    "return arguments[0].shadowRoot", element
-                )
+                shadow_root = self.execute_script("return arguments[0].shadowRoot", element)
             except JavascriptException:
                 time.sleep(2)
-                shadow_root = self.execute_script(
-                    "return arguments[0].shadowRoot", element
-                )
+                shadow_root = self.execute_script("return arguments[0].shadowRoot", element)
         if timeout == 0.1 and not shadow_root:
             raise Exception("Element {%s} has no shadow root!" % selector_chain)
         elif not shadow_root:
@@ -134,16 +127,12 @@ def get_shadow_element(
         try:
             if self.is_chromium() and int(self.__get_major_browser_version()) >= 96:
                 if timeout == 0.1:
-                    element = shadow_root.find_element(
-                        By.CSS_SELECTOR, value=selector_part
-                    )
+                    element = shadow_root.find_element(By.CSS_SELECTOR, value=selector_part)
                 else:
                     found = False
                     for i in range(int(timeout) * 4):
                         try:
-                            element = shadow_root.find_element(
-                                By.CSS_SELECTOR, value=selector_part
-                            )
+                            element = shadow_root.find_element(By.CSS_SELECTOR, value=selector_part)
                             is_present = True
                             if must_be_visible:
                                 if not element.is_displayed():
@@ -154,9 +143,7 @@ def get_shadow_element(
                             time.sleep(0.2)
                             continue
                     if not found:
-                        element = shadow_root.find_element(
-                            By.CSS_SELECTOR, value=selector_part
-                        )
+                        element = shadow_root.find_element(By.CSS_SELECTOR, value=selector_part)
                         is_present = True
                         if must_be_visible and not element.is_displayed():
                             raise Exception("Shadow Root element not visible!")

@@ -31,9 +31,7 @@ def create_dashboard():
     mkdir_p(assets_folder)
 
     dashboard_logger = logger.bind(task="dashboard".rjust(10, " "))
-    file: pathlib.Path = settings.RESOURCES_ROOT.joinpath(
-        "dashboard", "pytest_style.css"
-    )
+    file: pathlib.Path = settings.RESOURCES_ROOT.joinpath("dashboard", "pytest_style.css")
     pytest_style_css: pathlib.Path = shutil.copy(file, assets_folder)
     dashboard_logger.info("Copied file pytest_style.css to {}", pytest_style_css)
     file: pathlib.Path = settings.RESOURCES_ROOT.joinpath("dashboard", "live.js")

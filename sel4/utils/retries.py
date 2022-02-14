@@ -71,8 +71,7 @@ def __retry_internal(
 
 @validate_arguments
 def retry(
-    exceptions: Type[Exception]
-    | Tuple[Type[Exception]] = Field(default_factory=Exception),
+    exceptions: Type[Exception] | Tuple[Type[Exception]] = Field(default_factory=Exception),
     tries: int = Field(default=-1),
     delay: float = Field(default=0, ge=0),
     max_delay: OptionalFloat = Field(default=None, ge=0.0),

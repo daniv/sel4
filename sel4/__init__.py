@@ -11,9 +11,7 @@ if env("PYTHONPATH", str, None):
             os.environ.setdefault("PROJECT_ROOT", root_path)
         sel4_path = str(pathlib.Path(__file__).parent)
         if sel4_path not in os.environ["PYTHONPATH"]:
-            os.environ["PYTHONPATH"] = (
-                f"{root_path}:{sel4_path}:" + os.environ["PYTHONPATH"]
-            )
+            os.environ["PYTHONPATH"] = f"{root_path}:{sel4_path}:" + os.environ["PYTHONPATH"]
 
     _add_to_python_path()
 else:

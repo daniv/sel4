@@ -38,9 +38,7 @@ def switch_to_window(driver: WebDriver, window: int | str, timeout: int = consta
         message = f'Window {window} was not present after {timeout} second{"s" if timeout == 1 else ""}!'
         if not exception:
             exception = Exception
-        raise TimeoutException(
-            msg=f'\n {exception.__class__.__qualname__}: {message}'
-        )
+        raise TimeoutException(msg=f"\n {exception.__class__.__qualname__}: {message}")
 
     else:
         window_handle = window
@@ -59,6 +57,4 @@ def switch_to_window(driver: WebDriver, window: int | str, timeout: int = consta
         message = f'Window {window} was not present after{timeout} second{"s" if timeout == 1 else ""}!'
         if not exception:
             exception = Exception
-        raise TimeoutException(
-            msg=f'\n {exception.__class__.__qualname__}: {message}'
-        )
+        raise TimeoutException(msg=f"\n {exception.__class__.__qualname__}: {message}")

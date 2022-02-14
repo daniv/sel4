@@ -54,11 +54,9 @@ def wait_for_ready_state_complete(driver: WebDriver, timeout: PositiveFloat):
 def wait_for_angularjs(driver: WebDriver, timeout: PositiveFloat, **kwargs):
 
     if not settings.WAIT_FOR_ANGULARJS:
-        logger.debug('Skipping, settings.WAIT_FOR_ANGULARJS={}', settings.WAIT_FOR_ANGULARJS)
+        logger.debug("Skipping, settings.WAIT_FOR_ANGULARJS={}", settings.WAIT_FOR_ANGULARJS)
         return
-    logger.debug(
-        'settings.WAIT_FOR_ANGULARJS={angular}, timeout={} secs', timeout, angular=settings.WAIT_FOR_ANGULARJS
-    )
+    logger.debug("settings.WAIT_FOR_ANGULARJS={angular}, timeout={} secs", timeout, angular=settings.WAIT_FOR_ANGULARJS)
     def_pre = "var cb=arguments[arguments.length-1];if(window.angular){"
     prefix = kwargs.pop("prefix", def_pre)
     handler = kwargs.pop("handler", "function(){cb(true)}")
@@ -93,9 +91,7 @@ def wait_for_angularjs(driver: WebDriver, timeout: PositiveFloat, **kwargs):
 
 @validate_arguments
 def execute_async_script(
-        driver: WebDriver,
-        script: str = Field(min_length=5, strict=True),
-        timeout: PositiveFloat = None
+    driver: WebDriver, script: str = Field(min_length=5, strict=True), timeout: PositiveFloat = None
 ):
     driver.set_script_timeout(timeout)
     return driver.execute_async_script(script)

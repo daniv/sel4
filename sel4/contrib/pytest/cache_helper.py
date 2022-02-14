@@ -38,11 +38,7 @@ class PytestCache:
             curr_dir = cache_path / prefix
             from sel4.utils.fileutils import iter_find_files
 
-            files = list(
-                iter_find_files(
-                    curr_dir, "*", ignored=["stepwise", "nodeids", "lastfailed"]
-                )
-            )
+            files = list(iter_find_files(curr_dir, "*", ignored=["stepwise", "nodeids", "lastfailed"]))
             for file in files:
                 item_time = file.stat().st_mtime
                 if file.is_file():

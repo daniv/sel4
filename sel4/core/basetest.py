@@ -22,6 +22,7 @@ class BasePytestUnitTestCase(unittest.UnitTestCase):
 
     def __get_new_timeout(self, timeout: OptionalInt = None):
         import math
+
         try:
             timeout_multiplier = float(self.config.getoption("timeout_multiplier", 1))
             if timeout_multiplier <= 0.5:
@@ -36,6 +37,7 @@ class BasePytestUnitTestCase(unittest.UnitTestCase):
     def set_time_limit(self, time_limit: OptionalFloat = None):
         if time_limit:
             from .runtime import time_limit
+
             runtime_store[time_limit] = time_limit
         else:
             runtime_store[time_limit] = None

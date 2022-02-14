@@ -23,9 +23,7 @@ def import_string(dotted_path: str) -> Any:
     try:
         return getattr(module, class_name)
     except AttributeError as e:
-        raise ImportError(
-            f'Module "{module_path}" does not define a "{class_name}" attribute'
-        ) from e
+        raise ImportError(f'Module "{module_path}" does not define a "{class_name}" attribute') from e
 
 
 class MultiReplace:
@@ -98,9 +96,7 @@ class MultiReplace:
             regex_values.append("(?P<{0}>{1})".format(group_name, exp))
             self.group_map[group_name] = vals[1]
 
-        self.combined_pattern = re.compile(
-            "|".join(regex_values), flags=options["flags"]
-        )
+        self.combined_pattern = re.compile("|".join(regex_values), flags=options["flags"])
 
     def _get_value(self, match):
         """Given a match object find replacement value."""
@@ -117,9 +113,7 @@ class MultiReplace:
         return self.combined_pattern.sub(self._get_value, text)
 
 
-def multi_replace(
-    text: Text, sub_map: Union[List[Tuple[Text, Text]], Dict[Text, Text]], **kwargs
-):
+def multi_replace(text: Text, sub_map: Union[List[Tuple[Text, Text]], Dict[Text, Text]], **kwargs):
     """
     Shortcut function to invoke MultiReplace in a single call.
     """

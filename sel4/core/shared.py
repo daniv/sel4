@@ -46,11 +46,10 @@ def state_message(state, now, st, retry, how=None, sel=None, to: float = 0.0):
         if how and sel:
             state_msg = 'Element {how}="{selector}" {state}\n\twaiting another: {delta}, retry: {retry}'
         else:
-            state_msg = '{state}\n\twaiting another: {delta}, retry: {retry}'
+            state_msg = "{state}\n\twaiting another: {delta}, retry: {retry}"
         delta = timedelta(milliseconds=st - now)
         precise_delta = humanize.precisedelta(delta, minimum_unit="milliseconds")
         state_msg.format(how=how, selector=sel, state=state, delta=precise_delta, retry=retry)
 
     logger.opt(lazy=True).debug(lambda: log_message())
     time.sleep(to * 0.2)
-

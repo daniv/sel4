@@ -25,11 +25,7 @@ class EnumMixin(Enum):
         """
         Allow each enum to be easily converted to dict
         """
-        return {
-            k: v
-            for k, v in cls.__dict__.items()
-            if not isinstance(v, classmethod) and not k.startswith("_")
-        }
+        return {k: v for k, v in cls.__dict__.items() if not isinstance(v, classmethod) and not k.startswith("_")}
 
     @classmethod
     def to_list(cls) -> list:
