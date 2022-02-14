@@ -9,24 +9,29 @@ from loguru import logger
 
 
 def setup_framework():
-    """ Set up the testing framework """
-    from sel4.conf import settings
+    """Set up the testing framework."""
     import pathlib
+
+    from sel4.conf import settings
 
     paths = settings.PROJECT_PATHS
 
     def _create_last_result_backup():
         src: pathlib.Path = dict(paths).get("LAST_EXECUTION")
         if src.exists():
-            import tempfile
             import shutil
+            import tempfile
             from datetime import datetime
-            folder_name = datetime.fromtimestamp(int(src.stat().st_mtime)).strftime("%Y%m%d_%H%M%S")
+
+            folder_name = datetime.fromtimestamp(int(src.stat().st_mtime)).strftime(
+                "%Y%m%d_%H%M%S"
+            )
             dst = pathlib.Path(tempfile.gettempdir()).joinpath(folder_name)
             shutil.move(src, dst)
 
     def _create_new_execution_folder():
         from sel4.utils.fileutils import mkdir_p
+
         for name, path in paths:
             if isinstance(path, pathlib.Path):
                 logger.debug("Creating directory {}", str(path))
@@ -39,7 +44,9 @@ def setup_framework():
 
 
 def colorize_option_group(group_name: str) -> str:
+    """For pytest -h, it colorizes the sel4 group."""
     import colorama
+
     c1 = ""
     c2 = ""
     cr = ""
