@@ -9,22 +9,78 @@
     - IeDriverManager: for downloading and installing Internet Explorer based webdrivers
 """
 import os
+import pathlib
 import sys
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional, Sequence
 
 from loguru import logger
 from pytest import StashKey, hookimpl, mark
+from rich import get_console, box, inspect
+from rich.align import Align
+from rich.highlighter import ReprHighlighter
+from rich.panel import Panel
+from rich.pretty import Pretty
+from rich.style import Style
+from rich.table import Table
+from rich.text import Text
+from rich.traceback import Traceback
+from selenium.common.exceptions import TimeoutException, WebDriverException
 from selenium.webdriver.chrome.webdriver import WebDriver
 
 from sel4.conf import settings
+from .. import constants
 
 from ..exceptions import ImproperlyConfigured
 from ..runtime import runtime_store
 
 if TYPE_CHECKING:
     from pytest import Config, Parser
-
-
+#
+# from rich.console import Console, ConsoleOptions, RenderResult
+# class RichTimeoutException(TimeoutException):
+#     def __init__(self, msg: Optional[str] = None, screen: Optional[str] = None,
+#                  stacktrace: Optional[Sequence[str]] = None) -> None:
+#         super(RichTimeoutException, self).__init__(msg, screen, stacktrace)
+#         from loguru._datetime import aware_now
+#         # Monday, February 14, 2022
+#         self.datetime = f'TimeoutException report generated on [cyan]{aware_now().strftime("%A, %B %d, %Y")}[/]'
+#
+#     def __rich_console__(self, console: Console, options: ConsoleOptions) -> RenderResult:
+#         highlighter = ReprHighlighter()
+#         title = highlighter("<class 'WebDriver.TimeoutException'>")
+#         yield Panel(
+#             renderable=Align(self.datetime, "center"),
+#             title=title,
+#             box=box.DOUBLE,
+#             border_style="scope.border",
+#             padding=(1, 2)
+#         )
+#         items_table = Table.grid(padding=(0, 1), expand=True)
+#         items_table.add_column(justify="left", width=15)
+#         items_table.add_column(justify="left")
+#         add_row = items_table.add_row
+#         add_row("Message", highlighter(self.msg))
+#         uri = pathlib.Path(self.screen).as_uri()
+#         screenshot = Text(uri, style=Style(link=uri, color="#6088ff",),)
+#         add_row("Screenshot", screenshot)
+#         yield items_table
+#         yield ""
+#         traceback = Traceback(
+#             width=120,
+#             extra_lines=5,
+#             theme=None,
+#             word_wrap=True,
+#             show_locals=False,
+#             suppress=(),
+#             max_frames=100,
+#         )
+#         yield "[b]Traceback[/]:"
+#         yield traceback
+#         # console.print_exception()
+#         # my_table = Table("Attribute", "Value")
+#         # my_table.add_row("name", self.msg)
+#         # my_table.add_row("age", str(self.msg))
+#         # yield my_table
 ########################################################################################################################
 # PYTEST PLUGINS
 ########################################################################################################################
@@ -37,14 +93,15 @@ def pytest_addoption(parser: "Parser") -> None:
     """
      This plugin adds the following command-line options to pytest:
 
-    --chrome  will use chrome driver
-    --edge  will use edge driver
-    --safari  will use safari driver
-    --firefox  will use firefox driver
-    --headless  (Run tests in headless mode. The default arg on Linux OS.)
-    --headed, --gui  (Run tests in headed/GUI mode on Linux OS.)
-    --maximize  (Start tests with the web browser window maximized.)
-    --fullscreen  (Start tests with the web browser window maximized.)
+        --chrome  will use chrome driver
+        --edge  will use edge driver
+        --safari  will use safari driver
+        --firefox  will use firefox driver
+        --headless  Run tests in headless mode. The default arg on Linux OS.
+        --headed, --gui  Run tests in headed/GUI mode on Linux OS.
+        --maximize  Start tests with the web browser window maximized.
+        --fullscreen  Start tests with the web browser window maximized.
+        --check-js  Check for JavaScript errors after page loads.
     """
     from tests import colorize_option_group
 
@@ -153,6 +210,16 @@ def pytest_addoption(parser: "Parser") -> None:
     )
     # endregion --fullscreen, --fullscreen-window-startup
 
+    # region --check-js
+    sel4_group.addoption(
+        "--check-js",
+        action="store_true",
+        dest="js_checking_on",
+        default=False,
+        help="""The option to check for JavaScript errors after every page load.""",
+    )
+    # endregion --check-js
+
     parser.addini(
         name="highlights",
         type="string",
@@ -166,6 +233,24 @@ def pytest_addoption(parser: "Parser") -> None:
         type="string",
         default=settings.HOME_URL,
     )
+    # try:
+    #     timeout = 11.0
+    #     msg = (f'Element id="#Login" on /page/login was not present '
+    #            f'after {timeout} second{"s" if timeout > 1 else ""}!'
+    #            )
+    #     rt = RichTimeoutException(msg=msg,
+    #                               screen="C:/Users/solma/PycharmProjects/sel4/out/image.jpg")
+    #     inspect(rt)
+    #     raise rt
+    # except RichTimeoutException as e:
+    #     c = Console(force_terminal=True, color_system="truecolor")
+    #     c.record = True
+    #     c.print(e)
+    #     c.save_html(
+    #         path="C:/Users/solma/PycharmProjects/sel4/out/local/pytest_exec/reports/errors/err.html",
+    #         clear=True,
+    #     )
+    #     c.record = False
 
     ctx_logger.debug("Validating browser switches (only 1 should be supplied)")
     browser_text = ""
@@ -194,7 +279,7 @@ def pytest_addoption(parser: "Parser") -> None:
             "\nONLY ONE default browser is allowed!, Select a single browser & try again"
         )
     parser.addini(
-        "browser_text", type="string", default=browser_text, help="The selected browser"
+        "browser_name", type="string", default=browser_text, help="The selected browser"
     )
 
 
@@ -214,7 +299,7 @@ def pytest_configure(config: "Config"):
     # sb_config.item_count_untested = 0
     # sb_config.is_pytest = True
     # sb_config.pytest_config = config
-    # sb_config.browser = config.getoption("browser")
+    browser = config.getini("browser_name")
     # if sb_config._browser_shortcut:
     #     sb_config.browser = sb_config._browser_shortcut
     # sb_config.account = config.getoption("account")
@@ -300,7 +385,6 @@ def pytest_configure(config: "Config"):
     # sb_config.save_screenshot = config.getoption("save_screenshot")
     # sb_config.visual_baseline = config.getoption("visual_baseline")
     # sb_config.external_pdf = config.getoption("external_pdf")
-    # sb_config.timeout_multiplier = config.getoption("timeout_multiplier")
     # sb_config._is_timeout_changed = False
     # sb_config._SMALL_TIMEOUT = settings.SMALL_TIMEOUT
     # sb_config._LARGE_TIMEOUT = settings.LARGE_TIMEOUT
@@ -404,33 +488,33 @@ def pytest_configure(config: "Config"):
     #     if not headless:
     #         session_config.browser_settings.headed = True
     #
-    # if browser == "chrome":
-    #     from sel4.core.plugins._webdriver_downloader import ChromeDriverDownloader
-    #     downloader = ChromeDriverDownloader(config)
-    #
-    #     config_logger.debug('driver_name "{}"', downloader.driver_name)
-    #     config_logger.debug('version_mode "{}"', settings.WEB_DRIVER_MANAGER_VERSION_MODE)
-    #     config_logger.debug('latest_version {}', downloader.latest_version)
-    #     config_logger.debug('compatible_version {}', downloader.compatible_version)
-    #     constants.Browser.VERSION['chrome'] = downloader.compatible_version
-    #     constants.Browser.LATEST['chrome'] = downloader.latest_version
-    #
-    #     config_logger.debug('compressed_file_folder {}', downloader.compressed_file_folder)
-    #     url, file = downloader.download_url
-    #     from httpx import URL
-    #     httpx_url = URL(url)
-    #     httpx_url = {
-    #         'host': httpx_url.host,
-    #         'path': httpx_url.path,
-    #         'params': str(httpx_url.params)
-    #     }
-    #     config_logger.debug('webdriver download_url \n{}', httpx_url)
-    #     config_logger.debug('webdriver download_file {}', file)
-    #     del httpx_url
-    #
-    #     config_logger.info('Creating directory for "Chrome downloads" as {}', str(downloader.download_folder))
-    #     config_logger.info('Creating directory for "Chrome extractions" as {}', str(downloader.extract_folder))
-    #     from sel4.utils.fileutils import mkdir_p
-    #     mkdir_p(downloader.download_folder)
-    #     mkdir_p(downloader.extract_folder)
-    #     downloader.install()
+    if browser == "chrome":
+        from sel4.core.plugins._webdriver_downloader import ChromeDriverDownloader
+        downloader = ChromeDriverDownloader(config)
+
+        config_logger.debug('driver_name "{}"', downloader.driver_name)
+        config_logger.debug('version_mode "{}"', settings.WEB_DRIVER_MANAGER_VERSION_MODE)
+        config_logger.debug('latest_version {}', downloader.latest_version)
+        config_logger.debug('compatible_version {}', downloader.compatible_version)
+        constants.Browser.VERSION['chrome'] = downloader.compatible_version
+        constants.Browser.LATEST['chrome'] = downloader.latest_version
+
+        config_logger.debug('compressed_file_folder {}', downloader.compressed_file_folder)
+        url, file = downloader.download_url
+        from httpx import URL
+        httpx_url = URL(url)
+        httpx_url = {
+            'host': httpx_url.host,
+            'path': httpx_url.path,
+            'params': str(httpx_url.params)
+        }
+        config_logger.debug('webdriver download_url \n{}', httpx_url)
+        config_logger.debug('webdriver download_file {}', file)
+        del httpx_url
+
+        config_logger.info('Creating directory for "Chrome downloads" as {}', str(downloader.download_folder))
+        config_logger.info('Creating directory for "Chrome extractions" as {}', str(downloader.extract_folder))
+        from sel4.utils.fileutils import mkdir_p
+        mkdir_p(downloader.download_folder)
+        mkdir_p(downloader.extract_folder)
+        downloader.install()

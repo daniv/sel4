@@ -227,8 +227,8 @@ def pytest_addoption(parser: "Parser", pluginmanager: "PytestPluginManager") -> 
         "--timeout-multiplier",
         action="store",
         dest="timeout_multiplier",
-        type=float,
-        default=0.0,
+        type=Optional[float],
+        default=None,
         help="""Setting this overrides the default timeout
                 by the multiplier when waiting for page elements.
                 Unused when tests override the default value.""",
@@ -301,14 +301,6 @@ def pytest_addoption(parser: "Parser", pluginmanager: "PytestPluginManager") -> 
             '\n  (DO NOT combine "--forked" with "--rs"/"--reuse-session"!)\n'
         )
 
-    # parser.addini(
-    #     name='used_packs',
-    #     help='Report used packages',
-    #     type='linelist',
-    #     default=[('PYTEST_VERSION', pytest.__version__)]
-    # )
-
-
 # endregion pytest_addoption(parser, pluginmanager)
 
 
@@ -328,9 +320,10 @@ def pytest_configure(config: "Config") -> None:
     config_logger = logger.bind(task="config".rjust(10, " "))
 
     config_logger.trace("Storing stash key for pytestconfig")
-    from sel4.core.runtime import pytestconfig, timeout_changed
+    from sel4.core.runtime import pytestconfig, timeout_changed, time_limit
     runtime_store[pytestconfig] = config
     runtime_store[timeout_changed] = False
+    runtime_store[time_limit] = config.getoption("time_limit", None)
 
     config_logger.info('Registering "DirectoryManagerPlugin" plugin"')
     from sel4.core.plugins.directory_manager import DirectoryManagerPlugin

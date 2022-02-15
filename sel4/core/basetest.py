@@ -1,5 +1,5 @@
 from _pytest import unittest
-from pydantic import Field, validate_arguments
+from pydantic import Field, validate_arguments, PositiveInt
 
 from sel4.utils.typeutils import OptionalFloat, OptionalInt
 
@@ -20,7 +20,7 @@ class BasePytestUnitTestCase(unittest.UnitTestCase):
         self.__deferred_assert_failures = []
         self.__visual_baseline_copies = []
 
-    def __get_new_timeout(self, timeout: OptionalInt = None):
+    def __get_new_timeout(self, timeout: OptionalInt = None) -> int:
         import math
 
         try:
@@ -49,8 +49,13 @@ class BasePytestUnitTestCase(unittest.UnitTestCase):
             runtime_store[time_limit] = None
 
     @validate_arguments
-    def get_timeout(self, timeout: OptionalInt = None, default_tm: int = Field(gt=0)) -> int:
+    def get_timeout(
+            self,
+            timeout: OptionalInt = None,
+            default_tm: int = Field(strict=True, gt=0)
+    ) -> int:
         if not timeout:
             return default_tm
         if self.config.getoption("timeout_multiplier", None) and timeout == default_tm:
             return self.__get_new_timeout(timeout)
+        return timeout

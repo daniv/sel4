@@ -1,10 +1,18 @@
 """
 source : https://github.com/mahmoud/boltons/blob/master/boltons/strutils.py
 """
+import os
 import re
+import threading
+import uuid
+import socket
+import platform
 from typing import Any, Dict, List, Mapping, Text, Tuple, Union
 
-__all__ = ["import_string", "multi_replace", "keep_alphanumerics", "parse_bool"]
+__all__ = [
+    "import_string", "multi_replace", "keep_alphanumerics", "parse_bool",
+    "host_tag", "thread_tag", "get_uuid4", "platform_label"
+]
 
 
 def import_string(dotted_path: str) -> Any:
@@ -147,3 +155,21 @@ def strtobool(val: str) -> int:
 
 def parse_bool(text: str) -> bool:
     return bool(strtobool(text))
+
+
+def get_uuid4():
+    return str(uuid.uuid4())
+
+
+def platform_label():
+    major_version, _, __ = platform.python_version_tuple()
+    implementation = platform.python_implementation()
+    return f'{implementation.lower()}{major_version}'
+
+
+def thread_tag():
+    return '{0}-{1}'.format(os.getpid(), threading.current_thread().name)
+
+
+def host_tag():
+    return socket.gethostname()

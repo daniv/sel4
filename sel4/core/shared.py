@@ -53,3 +53,112 @@ def state_message(state, now, st, retry, how=None, sel=None, to: float = 0.0):
 
     logger.opt(lazy=True).debug(lambda: log_message())
     time.sleep(to * 0.2)
+
+
+def get_exception_message(
+        name: Literal[
+            "not present", "hidden", "disabled", "stale", "visible", "present", "text", "enabled",
+            "attr not present", "attr value", "prop not present", "prop value", "css prop value",
+            "css prop not present"
+        ],
+        how,
+        selector,
+        timeout,
+        **kwargs
+) -> str:
+    def path(url: str) -> str:
+        """
+        Return the `httpx.URL.path`` portion of the url
+        """
+        from httpx import URL
+        url = URL(url)
+        return (
+            url.path
+            if len(url.path) > 1
+            else url.host
+        )
+
+    if name == "not present":
+        return (
+            f'Element {how}="{selector}" on {path}"\n'
+            f'\twas not present after {timeout} second{"s" if timeout == 1 else ""}!'
+        )
+    if name == "hidden":
+        return (
+            f'Element {how}="{selector}" on {path}"\n'
+            f'\twas hidden after {timeout} second{"s" if timeout == 1 else ""}!'
+        )
+    if name == "disabled":
+        return (
+            f'Element {how}="{selector}" on {path}"\n'
+            f'\twas disabled after {timeout} second{"s" if timeout == 1 else ""}!'
+        )
+    if name == "stale":
+        return (
+            f'Element {how}="{selector}" on {path}"\n'
+            f'\twas not present on DOM (stale) after {timeout} second{"s" if timeout == 1 else ""}!'
+        )
+    if name == "visible":
+        return (
+            f'Element {how}="{selector}" on {path}\n'
+            f'\twas still visible after {timeout} second{"s" if timeout == 1 else ""}!'
+        )
+    if name == "enabled":
+        return (
+            f'Element {how}="{selector}" on {path}\n'
+            f'\twas still enabled after {timeout} second{"s" if timeout == 1 else ""}!'
+        )
+    if name == "present":
+        return (
+            f'Element {how}="{selector}" on {path}\n'
+            f'\twas still present after {timeout} second{"s" if timeout == 1 else ""}!'
+        )
+    if name == "text":
+        text = kwargs.pop("text")
+        return (
+            f'Expected text:"{text}" for {how}="{selector}" on {path}\n'
+            f'\twas not visible after {timeout} second{"s" if timeout == 1 else ""}!'
+        )
+    if name == "attr not present":
+        attr = kwargs.pop("attr")
+        return (
+            f'Expected attribute "{attr}" of element {how}="{selector}", on {path}\n'
+            f'\twas not present after {timeout} second{"s" if timeout == 1 else ""}!'
+        )
+    if name == "attr value":
+        attr = kwargs.pop("attr")
+        val = kwargs.pop("val")
+        actual = kwargs.pop("actual")
+        return (
+            f'Expected value {val} for attribute {attr} of element {how}="{selector}", on {path}\n'
+            f'was not present after {timeout} second{"s" if timeout == 1 else ""}! (The actual value was {actual})'
+        )
+    if name == "prop not present":
+        prop = kwargs.pop("prop")
+        return (
+            f'Expected property "{prop}" of element {how}="{selector}", on {path}\n'
+            f'\twas not present after {timeout} second{"s" if timeout == 1 else ""}!'
+        )
+    if name == "prop value":
+        prop = kwargs.pop("prop")
+        val = kwargs.pop("val")
+        actual = kwargs.pop("actual")
+        return (
+            f'Expected value {val} for property {prop} of element {how}="{selector}", on {path}\n'
+            f'was not present after {timeout} second{"s" if timeout == 1 else ""}! (The actual value was {actual})'
+        )
+    if name == "css prop not present":
+        prop = kwargs.pop("prop")
+        return (
+            f'Expected css property "{prop}" of element {how}="{selector}", on {path}\n'
+            f'\twas not present after {timeout} second{"s" if timeout == 1 else ""}!'
+        )
+    if name == "css prop value":
+        prop = kwargs.pop("prop")
+        val = kwargs.pop("val")
+        actual = kwargs.pop("actual")
+        return (
+            f'Expected value {val} for css property {prop} of element {how}="{selector}", on {path}\n'
+            f'was not present after {timeout} second{"s" if timeout == 1 else ""}! (The actual value was {actual})'
+        )
+

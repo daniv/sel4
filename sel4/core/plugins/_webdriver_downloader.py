@@ -189,7 +189,7 @@ class ChromeDriverDownloader(DriverDownloaderBase):
             extract_folder, download_folder, webdrivermanager.ChromeDriverManager
         )
 
-        config.addinivalue_line("used_packs", webdrivermanager.get_version())
+        # config.addinivalue_line("used_packs", webdrivermanager.get_version())
 
     def install(self):
         try:
@@ -208,8 +208,8 @@ class ChromeDriverDownloader(DriverDownloaderBase):
 
         do_install = True
         executable = self.extract_folder.joinpath(self.driver_name)
-        executable_key = StashKey[pathlib.Path]
-        runtime_store[executable_key] = executable
+        # executable_key = StashKey[pathlib.Path]
+        # runtime_store[executable_key] = executable
 
         if executable.exists() and executable.is_symlink():
             # -- determine if a new webdriver installation is required
@@ -264,7 +264,7 @@ class GeckoDriverDownloader(DriverDownloaderBase):
         from sel4.core import runtime
 
         pytestconfig = getattr(runtime, "pytestconfig")
-        pytestconfig.addinivalue_line("used_packs", webdrivermanager.get_version())
+        # pytestconfig.addinivalue_line("used_packs", webdrivermanager.get_version())
 
     def _install_gecko_webdriver(self):
         """install the webdriver, if required it will download from chrome URL"""

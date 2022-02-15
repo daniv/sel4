@@ -5,9 +5,10 @@ import time
 
 from pydantic import Field, validate_arguments
 from selenium.common.exceptions import JavascriptException, WebDriverException
+from selenium.webdriver.remote.webdriver import WebDriver
 from selenium.webdriver.remote.webelement import WebElement
 
-from sel4.utils.typeutils import OptionalInt
+from sel4.utils.typeutils import OptionalInt, OptionalFloat
 
 from ..utils.retries import retry_call
 from . import constants, page_actions
@@ -43,7 +44,7 @@ def shadow_click(
 @validate_arguments
 def get_shadow_element(
     selector: str = Field(default="", strict=True, min_length=1),
-    timeout: OptionalInt = None,
+    timeout: OptionalFloat = None,
     must_be_visible=False,
 ):
     self.wait_for_ready_state_complete()
@@ -160,3 +161,32 @@ def get_shadow_element(
             )
             page_actions.timeout_exception(the_exception, msg)
     return element
+
+
+@validate_arguments
+def wait_for_shadow_element_visible(
+        driver: WebDriver,
+        selector: str = Field(default="", strict=True, min_length=1),
+        timeout: OptionalInt = None,
+) -> WebElement:
+    return get_shadow_element(driver, selector, timeout=timeout, must_be_visible=True)
+
+
+@validate_arguments
+def wait_for_shadow_element_present(
+        driver: WebDriver,
+        selector: str = Field(default="", strict=True, min_length=1),
+        timeout: OptionalInt = None
+) -> WebElement:
+    return get_shadow_element(driver, selector, timeout=timeout)
+
+
+def is_shadow_element_enabled(
+        driver: WebDriver,
+        selector: str = Field(default="", strict=True, min_length=1)
+) -> bool:
+    try:
+        element = get_shadow_element(driver, selector, timeout=0.1)
+        return element.is_enabled()
+    except WebDriverException:
+        return False

@@ -19,6 +19,12 @@ PROJECT_PATHS = [("LAST_EXECUTION", EXECUTION_ROOT.joinpath("pytest_exec"))]
 
 CACHE_NAME = "sel4"
 
+JQUERY_VERSION = "3.6.0"
+
+RESOURCES_URLS = [
+    ("JQUERY", f"https://cdnjs.cloudflare.com/ajax/libs/jquery/{JQUERY_VERSION}/jquery.min.js")
+]
+
 WEBDRIVER_MANAGER_PATHS = [
     ("downloads", PROJECT_ROOT.joinpath("webdrivers/downloads")),
     ("executables", PROJECT_ROOT.joinpath("webdrivers/bin")),

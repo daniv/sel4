@@ -1,3 +1,5 @@
+import os
+import pathlib
 import sys
 from typing import TYPE_CHECKING, List, Optional
 
@@ -42,6 +44,18 @@ class WebDriverBrowserLauncher(BaseModel):
     user_data_dir: Optional[DirectoryPath]
     extension_dir: Optional[DirectoryPath]
     extension_zip: List[FilePath] = Field(default_factory=list)
+    driver_path: Optional[FilePath] = None
+
+    def make_driver_executable_if_not(self):
+        driver_path = pathlib.Path(self.driver_path)
+        permissions = oct(os.stat(driver_path)[0])[-3:]
+        if "4" in permissions or "6" in permissions:
+            # We want at least a '5' or '7' to make sure it's executable
+            mode = os.stat(driver_path).st_mode
+            mode |= (mode & 0o444) >> 2  # copy R bits to X
+            os.chmod(driver_path, mode)
+
+
 
 
 def get_driver(launcher: WebDriverBrowserLauncher) -> 'WebDriver':
@@ -60,290 +74,33 @@ def get_local_driver(launcher: WebDriverBrowserLauncher) -> 'WebDriver':
     from selenium.common.exceptions import WebDriverException
     browser_name = launcher.browser_name
     if browser_name == constants.Browser.FIREFOX:
-        firefox_options = _set_firefox_options(
-            downloads_path,
-            headless,
-            locale_code,
-            proxy_string,
-            proxy_bypass_list,
-            user_agent,
-            disable_csp,
-            firefox_arg,
-            firefox_pref,
-        )
-        if LOCAL_GECKODRIVER and os.path.exists(LOCAL_GECKODRIVER):
-            try:
-                make_driver_executable_if_not(LOCAL_GECKODRIVER)
-            except Exception as e:
-                logger.debug(
-                    "\nWarning: Could not make geckodriver"
-                    " executable: %s" % e
-                )
-        elif not is_geckodriver_on_path():
-            args = " ".join(sys.argv)
-            if not ("-n" in sys.argv or " -n=" in args or args == "-c"):
-                # (Not multithreaded)
-                from seleniumbase.console_scripts import sb_install
+        ...
 
-                sys_args = sys.argv  # Save a copy of current sys args
-                print("\nWarning: geckodriver not found! Installing now:")
-                try:
-                    sb_install.main(override="geckodriver")
-                except Exception as e:
-                    print("\nWarning: Could not install geckodriver: %s" % e)
-                sys.argv = sys_args  # Put back the original sys args
-        import warnings
-        warnings.simplefilter("ignore", category=DeprecationWarning)
-        if "linux" in launcher.platform:
-            from selenium.webdriver.common.desired_capabilities import (
-                DesiredCapabilities,
-            )
-
-            firefox_capabilities = DesiredCapabilities.FIREFOX.copy()
-            firefox_capabilities["marionette"] = True
-            if launcher.headless:
-                firefox_capabilities["moz:firefoxOptions"] = {
-                    "args": ["-headless"]
-                }
-            return webdriver.Firefox(
-                capabilities=firefox_capabilities, options=firefox_options
-            )
-        else:
-            if os.path.exists(LOCAL_GECKODRIVER):
-                service = FirefoxService(
-                    executable_path=LOCAL_GECKODRIVER
-                )
-                return webdriver.Firefox(
-                    service=service,
-                    options=firefox_options,
-                )
-            else:
-                return webdriver.Firefox(options=firefox_options)
     elif browser_name == constants.Browser.EDGE:
-        prefs = {
-            "download.default_directory": downloads_path,
-            "local_discovery.notifications_enabled": False,
-            "credentials_enable_service": False,
-            "download.prompt_for_download": False,
-            "download.directory_upgrade": True,
-            "safebrowsing.enabled": False,
-            "safebrowsing.disable_download_protection": True,
-            "default_content_setting_values.notifications": 0,
-            "default_content_settings.popups": 0,
-            "managed_default_content_settings.popups": 0,
-            "content_settings.exceptions.automatic_downloads.*.setting": 1,
-            "profile.password_manager_enabled": False,
-            "profile.default_content_setting_values.notifications": 2,
-            "profile.default_content_settings.popups": 0,
-            "profile.managed_default_content_settings.popups": 0,
-            "profile.default_content_setting_values.automatic_downloads": 1,
-        }
-        if LOCAL_EDGEDRIVER and os.path.exists(LOCAL_EDGEDRIVER):
-            try:
-                make_driver_executable_if_not(LOCAL_EDGEDRIVER)
-            except Exception as e:
-                logger.debug(
-                    "\nWarning: Could not make edgedriver"
-                    " executable: %s" % e
-                )
-        elif not is_edgedriver_on_path():
-            args = " ".join(sys.argv)
-            if not ("-n" in sys.argv or " -n=" in args or args == "-c"):
-                # (Not multithreaded)
-                from seleniumbase.console_scripts import sb_install
+        ...
 
-                sys_args = sys.argv  # Save a copy of current sys args
-                print("\nWarning: msedgedriver not found. Installing now:")
-                sb_install.main(override="edgedriver")
-                sys.argv = sys_args  # Put back the original sys args
-
-        # For Microsoft Edge (Chromium) version 80 or higher
-        Edge = webdriver.edge.webdriver.WebDriver
-        EdgeOptions = webdriver.edge.webdriver.Options
-
-        if LOCAL_EDGEDRIVER and os.path.exists(LOCAL_EDGEDRIVER):
-            try:
-                make_driver_executable_if_not(LOCAL_EDGEDRIVER)
-            except Exception as e:
-                logger.debug(
-                    "\nWarning: Could not make edgedriver"
-                    " executable: %s" % e
-                )
-        edge_options = EdgeOptions()
-        edge_options.use_chromium = True
-        if launcher.block_images:
-            prefs["profile.managed_default_content_settings.images"] = 2
-        if launcher.external_pdf:
-            prefs["plugins.always_open_pdf_externally"] = True
-        edge_options.add_experimental_option("prefs", prefs)
-        edge_options.add_experimental_option("w3c", True)
-        edge_options.add_argument(
-            "--disable-blink-features=AutomationControlled"
-        )
-        edge_options.add_experimental_option(
-            "useAutomationExtension", False
-        )
-        edge_options.add_experimental_option(
-            "excludeSwitches", ["enable-automation", "enable-logging"]
-        )
-        if not launcher.enable_sync:
-            edge_options.add_argument("--disable-sync")
-        if launcher.guest_mode:
-            edge_options.add_argument("--guest")
-        if launcher.headless:
-            edge_options.add_argument("--headless")
-        if launcher.mobile_emulator:
-            emulator_settings = {}
-            device_metrics = {}
-            if (
-                    type(device_width) is int
-                    and type(device_height) is int
-                    and type(device_pixel_ratio) is int
-            ):
-                device_metrics["width"] = device_width
-                device_metrics["height"] = device_height
-                device_metrics["pixelRatio"] = device_pixel_ratio
-            else:
-                device_metrics["width"] = 411
-                device_metrics["height"] = 731
-                device_metrics["pixelRatio"] = 3
-            emulator_settings["deviceMetrics"] = device_metrics
-            if launcher.user_agent:
-                emulator_settings["userAgent"] = launcher.user_agent
-            edge_options.add_experimental_option(
-                "mobileEmulation", emulator_settings
-            )
-        if launcher.user_data_dir:
-            abs_path = launcher.user_data_dir.absolute()
-            edge_options.add_argument(f"user-data-dir={str(abs_path)}")
-        if launcher.extension_zip:
-            # Can be a comma-separated list of .ZIP or .CRX files
-            for extension_zip_item in launcher.extension_zip:
-                abs_path = os.path.abspath(extension_zip_item)
-                edge_options.add_extension(abs_path)
-        if launcher.extension_dir:
-            # load-extension input can be a comma-separated list
-            abs_path = os.path.abspath(launcher.extension_dir)
-            edge_options.add_argument("--load-extension=%s" % abs_path)
-        edge_options.add_argument("--disable-infobars")
-        edge_options.add_argument("--disable-notifications")
-        edge_options.add_argument("--disable-save-password-bubble")
-        edge_options.add_argument("--disable-single-click-autofill")
-        edge_options.add_argument(
-            "--disable-autofill-keyboard-accessory-view[8]"
-        )
-        edge_options.add_argument("--disable-translate")
-        if not launcher.enable_ws:
-            edge_options.add_argument("--disable-web-security")
-        edge_options.add_argument("--homepage=about:blank")
-        edge_options.add_argument("--dns-prefetch-disable")
-        edge_options.add_argument("--dom-automation")
-        edge_options.add_argument("--disable-hang-monitor")
-        edge_options.add_argument("--disable-prompt-on-repost")
-        if (
-                settings.DISABLE_CSP_ON_CHROME or launcher.disable_csp
-        ) and not launcher.headless:
-            # Headless Edge doesn't support extensions, which are required
-            # for disabling the Content Security Policy on Edge
-            edge_options = _add_chrome_disable_csp_extension(edge_options)
-        if launcher.ad_block_on and not launcher.headless:
-            edge_options = _add_chrome_ad_block_extension(edge_options)
-        if launcher.proxy_string:
-            if proxy_auth:
-                edge_options = _add_chrome_proxy_extension(
-                    edge_options, proxy_string, proxy_user, proxy_pass
-                )
-            edge_options.add_argument("--proxy-server=%s" % proxy_string)
-        if launcher.proxy_bypass_list:
-            edge_options.add_argument(
-                "--proxy-bypass-list=%s" % launcher.proxy_bypass_list
-            )
-        edge_options.add_argument("--test-type")
-        edge_options.add_argument("--log-level=3")
-        edge_options.add_argument("--no-first-run")
-        edge_options.add_argument("--ignore-certificate-errors")
-        if launcher.devtools and not launcher.headless:
-            edge_options.add_argument("--auto-open-devtools-for-tabs")
-        edge_options.add_argument("--allow-file-access-from-files")
-        edge_options.add_argument("--allow-insecure-localhost")
-        edge_options.add_argument("--allow-running-insecure-content")
-        if launcher.user_agent:
-            edge_options.add_argument("--user-agent=%s" % user_agent)
-        edge_options.add_argument("--no-sandbox")
-        if launcher.remote_debug:
-            # To access the Remote Debugger, go to: http://localhost:9222
-            # while a Chromium driver is running.
-            # Info: https://chromedevtools.github.io/devtools-protocol/
-            edge_options.add_argument("--remote-debugging-port=9222")
-        if launcher.swiftshader:
-            edge_options.add_argument("--use-gl=swiftshader")
-        else:
-            edge_options.add_argument("--disable-gpu")
-        if "linux" in launcher.platform:
-            edge_options.add_argument("--disable-dev-shm-usage")
-        if launcher.chromium_arg:
-            # Can be a comma-separated list of Chromium args
-            for chromium_arg_item in launcher.chromium_arg:
-                chromium_arg_item = chromium_arg_item.strip()
-                if not chromium_arg_item.startswith("--"):
-                    if chromium_arg_item.startswith("-"):
-                        chromium_arg_item = "-" + chromium_arg_item
-                    else:
-                        chromium_arg_item = "--" + chromium_arg_item
-                if len(chromium_arg_item) >= 3:
-                    edge_options.add_argument(chromium_arg_item)
-        try:
-            service = EdgeService(executable_path=LOCAL_EDGEDRIVER)
-            driver = Edge(service=service, options=edge_options)
-        except Exception as e:
-            auto_upgrade_edgedriver = False
-            edge_version = None
-            if "This version of MSEdgeDriver only supports" in e.msg:
-                if "Current browser version is " in e.msg:
-                    auto_upgrade_edgedriver = True
-                    edge_version = e.msg.split(
-                        "Current browser version is "
-                    )[1].split(' ')[0]
-                elif "only supports MSEdge version " in e.msg:
-                    auto_upgrade_edgedriver = True
-                    edge_version = e.msg.split(
-                        "only supports MSEdge version "
-                    )[1].split(' ')[0]
-            if not auto_upgrade_edgedriver:
-                raise Exception(e.msg)  # Not an obvious fix. Raise.
-            else:
-                pass  # Try upgrading EdgeDriver to match Edge.
-            args = " ".join(sys.argv)
-            if ("-n" in sys.argv or " -n=" in args or args == "-c"):
-                import fasteners
-
-                edgedriver_fixing_lock = fasteners.InterProcessLock(
-                    constants.MultiBrowser.CHROMEDRIVER_FIXING_LOCK
-                )
-                with edgedriver_fixing_lock:
-                    if not _was_chromedriver_repaired():  # Works for Edge
-                        _repair_edgedriver(edge_version)
-                        _mark_chromedriver_repaired()  # Works for Edge
-            else:
-                if not _was_chromedriver_repaired():  # Works for Edge
-                    _repair_edgedriver(edge_version)
-                _mark_chromedriver_repaired()  # Works for Edge
-            service = EdgeService(executable_path=LOCAL_EDGEDRIVER)
-            return Edge(service=service, options=edge_options)
     elif launcher.browser_name == constants.Browser.SAFARI:
-        arg_join = " ".join(sys.argv)
-        if ("-n" in sys.argv) or (" -n=" in arg_join) or (arg_join == "-c"):
-            # Skip if multithreaded
-            raise Exception("Can't run Safari tests in multi-threaded mode!")
-        warnings.simplefilter("ignore", category=DeprecationWarning)
-        return webdriver.safari.webdriver.WebDriver(quiet=False)
+        ...
+
     elif browser_name == constants.Browser.GOOGLE_CHROME:
         logger.info("Configuring chromedriver before launch browser instance")
 
-        local_chromedriver = get_session_settings().browser_settings.local_chromedriver
+        def set_executable_driver_path():
+            from webdrivermanager import ChromeDriverManager
+            if sys.platform.startswith("win"):
+                executable = ChromeDriverManager.driver_filenames["win"]
+            elif sys.platform.startswith("darwin"):
+                executable = ChromeDriverManager.driver_filenames["mac"]
+            else:
+                executable = ChromeDriverManager.driver_filenames["linux"]
+            executables: pathlib.Path = dict(settings.WEBDRIVER_MANAGER_PATHS).get("executables")
+            local_chromedriver = executables.joinpath("chrome", executable)
+            launcher.driver_path = local_chromedriver
+
         try:
+            set_executable_driver_path()
             chrome_options = set_chrome_options(launcher)
-            if local_chromedriver and local_chromedriver.exists():
+            if launcher.driver_path:
                 try:
                     launcher.make_driver_executable_if_not()
                 except Exception as e:
@@ -352,47 +109,32 @@ def get_local_driver(launcher: WebDriverBrowserLauncher) -> 'WebDriver':
                     )
             if not launcher.headless or "linux" not in sys.platform:
                 try:
-                    if local_chromedriver.exists():
-                        from selenium.webdriver.chrome.service import (
-                            Service as ChromeService,
-                        )
-                        service = ChromeService(
-                            executable_path=str(local_chromedriver)
-                        )
-                        driver = webdriver.Chrome(
-                            service=service,
-                            options=chrome_options,
-                        )
-                    else:
-                        driver = webdriver.Chrome(options=chrome_options)
+                    log_folder: pathlib.Path = dict(settings.PROJECT_PATHS).get("LOGS")
+                    service_log = log_folder.joinpath("chrome_service.log")
+                    from selenium.webdriver.chrome.service import Service
+                    service = Service(
+                        executable_path=str(launcher.driver_path),
+                        log_path=str(service_log)
+                    )
+                    driver = webdriver.Chrome(
+                        chrome_options=chrome_options,
+                        service=service
+                    )
+
                 except WebDriverException as e:
                     headless = True
                     headless_options = set_chrome_options(launcher)
                     args = " ".join(sys.argv)
                     if ("-n" in sys.argv or " -n=" in args or args == "-c"):
-                        import fasteners
-
-                        chromedriver_fixing_lock = fasteners.InterProcessLock(
-                            constants.MultiBrowser.CHROMEDRIVER_FIXING_LOCK
-                        )
-                        with chromedriver_fixing_lock:
-                            if not _was_chromedriver_repaired():
-                                _repair_chromedriver(
-                                    chrome_options, headless_options
-                                )
-                                _mark_chromedriver_repaired()
+                        ...
                     else:
-                        if not _was_chromedriver_repaired():
-                            _repair_chromedriver(
-                                chrome_options, headless_options
-                            )
-                        _mark_chromedriver_repaired()
-                    if local_chromedriver.exists():
+                        ...
+                    if launcher.driver_path.exists():
                         from selenium.webdriver.chrome.service import (
                             Service as ChromeService,
                         )
                         service = ChromeService(
-                            executable_path=str(local_chromedriver)
+                            executable_path=str(launcher.driver_path)
                         )
                         driver = webdriver.Chrome(
                             service=service,
@@ -404,46 +146,7 @@ def get_local_driver(launcher: WebDriverBrowserLauncher) -> 'WebDriver':
             else:  # Running headless on Linux
                 try:
                     return webdriver.Chrome(options=chrome_options)
-                except Exception as e:
-                    auto_upgrade_chromedriver = False
-                    if "This version of ChromeDriver only supports" in e.msg:
-                        auto_upgrade_chromedriver = True
-                    elif "Chrome version must be between" in e.msg:
-                        auto_upgrade_chromedriver = True
-                    if auto_upgrade_chromedriver:
-                        args = " ".join(sys.argv)
-                        if (
-                                "-n" in sys.argv
-                                or " -n=" in args
-                                or args == "-c"
-                        ):
-                            import fasteners
-
-                            chromedr_fixing_lock = fasteners.InterProcessLock(
-                                constants.MultiBrowser.CHROMEDRIVER_FIXING_LOCK
-                            )
-                            with chromedr_fixing_lock:
-                                if not _was_chromedriver_repaired():
-                                    try:
-                                        _repair_chromedriver(
-                                            chrome_options, chrome_options
-                                        )
-                                        _mark_chromedriver_repaired()
-                                    except Exception:
-                                        pass
-                        else:
-                            if not _was_chromedriver_repaired():
-                                try:
-                                    _repair_chromedriver(
-                                        chrome_options, chrome_options
-                                    )
-                                except Exception:
-                                    pass
-                            _mark_chromedriver_repaired()
-                        try:
-                            return webdriver.Chrome(options=chrome_options)
-                        except Exception:
-                            pass
+                except WebDriverException as e:
                     # Use the virtual display on Linux during headless errors
                     logger.debug(
                         "\nWarning: Chrome failed to launch in"
@@ -462,7 +165,6 @@ def get_local_driver(launcher: WebDriverBrowserLauncher) -> 'WebDriver':
 
 
 def set_chrome_options(launcher: WebDriverBrowserLauncher) -> "ChromeOptions":
-
     from selenium import webdriver
     chrome_options = webdriver.ChromeOptions()
     chrome_settings = constants.Browser.SETTINGS.get("chrome")

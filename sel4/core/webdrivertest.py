@@ -3,20 +3,52 @@ https://saucelabs.com/selenium-4
 """
 import time
 import webbrowser
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, cast
 
 from httpx import URL
 from loguru import logger
-from pydantic import FileUrl, HttpUrl, ValidationError, validate_arguments
-from selenium.common.exceptions import NoSuchWindowException, WebDriverException
+from pydantic import FileUrl, HttpUrl, ValidationError, validate_arguments, Field, PositiveInt, BaseModel
+from selenium.common.exceptions import (
+    NoSuchWindowException,
+    JavascriptException,
+    WebDriverException
+)
 from selenium.webdriver.common.by import By
 from selenium.webdriver.remote.webdriver import WebDriver
 
 from sel4.conf import settings
 from sel4.core.plugins._webdriver_builder import WebDriverBrowserLauncher, get_driver
+from .shared import SeleniumBy
 
 from ..utils.typeutils import OptionalInt
-from . import constants, js_utils, page_actions, shared
+from . import constants
+from .shared import (
+    check_if_time_limit_exceeded
+)
+from .page_actions import (
+    switch_to_window,
+    is_element_present,
+    wait_for_element_visible,
+    wait_for_element_present
+)
+from .js_utils import (
+    wait_for_ready_state_complete,
+    get_scroll_distance_to_element,
+    wait_for_angularjs,
+    is_in_frame,
+    slow_scroll_to_element,
+    scroll_to_element,
+    is_jquery_activated,
+    activate_jquery,
+    execute_async_script
+)
+from .shadow import (
+    is_shadow_selector,
+    wait_for_shadow_element_visible,
+    wait_for_shadow_element_present,
+    is_shadow_element_enabled,
+    shadow_click
+)
 from .basetest import BasePytestUnitTestCase
 from .exceptions import OutOfScopeException
 from .runtime import runtime_store, shared_driver, time_limit
@@ -46,7 +78,7 @@ class WebDriverTest(BasePytestUnitTestCase):
         self.__last_page_load_url: Optional[HttpUrl] = None
 
     def __check_scope__(self):
-        if self.config.getoption("browser_name", None) is not None:
+        if self.config.getini("browser_name") is not None:
             return
 
         message = (
@@ -89,7 +121,7 @@ class WebDriverTest(BasePytestUnitTestCase):
             # -- Chromium browsers in headed mode use the extension instead
             current_url, httpx_url = self.get_current_url()
             if not current_url == self.__last_page_load_url:
-                if page_actions.is_element_present(self.driver, By.CSS_SELECTOR, "iframe"):
+                if is_element_present(self.driver, By.CSS_SELECTOR, "iframe"):
                     self.ad_block()
                 self.__last_page_load_url = current_url
 
@@ -112,9 +144,9 @@ class WebDriverTest(BasePytestUnitTestCase):
                 wait_time = float(self.config.getoption("demo_sleep"))
             time.sleep(wait_time)
 
-    def __demo_mode_scroll_if_active(self, selector, by):
+    def __demo_mode_scroll_if_active(self, how: SeleniumBy, selector: str):
         if self.config.getoption("demo_mode", False):
-            self.slow_scroll_to(selector, by=by)
+            self.slow_scroll_to(how, selector)
 
     def __quit_all_drivers(self):
         shared_drv = runtime_store.get(shared_driver, None)
@@ -145,7 +177,7 @@ class WebDriverTest(BasePytestUnitTestCase):
         self._drivers_list = []
 
     def __is_in_frame(self):
-        return js_utils.is_in_frame(self.driver)
+        return is_in_frame(self.driver)
 
     def is_chromium(self):
         """Return True if the browser is Chrome, Edge, or Opera."""
@@ -170,14 +202,14 @@ class WebDriverTest(BasePytestUnitTestCase):
         if limit:
             time.sleep(seconds)
         elif seconds < 0.4:
-            shared.check_if_time_limit_exceeded()
+            check_if_time_limit_exceeded()
             time.sleep(seconds)
-            shared.check_if_time_limit_exceeded()
+            check_if_time_limit_exceeded()
         else:
             start_ms = time.time() * 1000.0
             stop_ms = start_ms + (seconds * 1000.0)
             for x in range(int(seconds * 5)):
-                shared.check_if_time_limit_exceeded()
+                check_if_time_limit_exceeded()
                 now_ms = time.time() * 1000.0
                 if now_ms >= stop_ms:
                     break
@@ -363,14 +395,18 @@ class WebDriverTest(BasePytestUnitTestCase):
         current_url = self.driver.current_url
         return URL(current_url), current_url
 
-    @validate_arguments
-    def open(self, url: HttpUrl | FileUrl):
+    def open(self, url: str):
         """Navigates the current browser window to the specified page."""
+        class UrlValidator(BaseModel):
+            url: HttpUrl | FileUrl
+
+        UrlValidator(url=url)
         self.__check_scope__()
         self.__check_browser__()
-        pre_action_url, httpx_url = self.driver.current_url
+
+        pre_action_url = self.driver.current_url
         self.__last_page_load_url = None
-        js_utils.clear_out_console_logs(self.driver)
+        self.clear_out_console_logs()
         try:
             self.driver.get(url)
         except WebDriverException as e:
@@ -395,7 +431,7 @@ class WebDriverTest(BasePytestUnitTestCase):
         """
         self.__check_scope__()
         timeout = self.get_timeout(timeout, constants.SMALL_TIMEOUT)
-        page_actions.switch_to_window(self.driver, window, timeout)
+        switch_to_window(self.driver, window, timeout)
 
     def switch_to_default_window(self) -> None:
         self.switch_to_window(0)
@@ -414,7 +450,8 @@ class WebDriverTest(BasePytestUnitTestCase):
 
     def get_new_driver(self, launcher_data: WebDriverBrowserLauncher, switch_to=True):
         self.__check_scope__()
-        if self.config.get("browser_name") == "remote" and self.config.getoption("servername", "") == "localhost":
+        browser = self.config.getini("browser_name")
+        if browser == "remote" and self.config.getoption("servername", "") == "localhost":
             raise RuntimeError(
                 'Cannot use "remote" browser driver on localhost!'
                 " Did you mean to connect to a remote Grid server"
@@ -424,7 +461,7 @@ class WebDriverTest(BasePytestUnitTestCase):
             )
         cap_file = self.config.getoption("cap_file", None)
         cap_string = self.config.getoption("cap_string", None)
-        if self.config.get("browser_name") == "remote" and not (cap_file or cap_string):
+        if browser == "remote" and not (cap_file or cap_string):
             browserstack_ref = "https://browserstack.com/automate/capabilities"
             sauce_labs_ref = "https://wiki.saucelabs.com/display/DOCS/Platform+Configurator#/"
             raise RuntimeError(
@@ -486,9 +523,9 @@ class WebDriverTest(BasePytestUnitTestCase):
         self.__check_scope__()
         self.__check_browser__()
         timeout = self.get_timeout(timeout, constants.EXTREME_TIMEOUT)
-        js_utils.wait_for_ready_state_complete(self.driver, timeout)
-        self.wait_for_angularjs(timeout=settings.MINI_TIMEOUT)
-        if self.js_checking_on:
+        wait_for_ready_state_complete(self.driver, timeout)
+        self.wait_for_angularjs(timeout=constants.MINI_TIMEOUT)
+        if self.config.getoption("js_checking_on"):
             self.assert_no_js_errors()
         self.__ad_block_as_needed()
         return True
@@ -499,7 +536,7 @@ class WebDriverTest(BasePytestUnitTestCase):
         """
         self.__check_scope__()
         timeout = self.get_timeout(timeout, constants.MINI_TIMEOUT)
-        js_utils.wait_for_angularjs(self.driver, timeout, **kwargs)
+        wait_for_angularjs(self.driver, timeout, **kwargs)
         return True
 
     def bring_active_window_to_front(self):
@@ -514,4 +551,119 @@ class WebDriverTest(BasePytestUnitTestCase):
         except WebDriverException:
             pass
 
+    def clear_out_console_logs(self):
+        try:
+            # Clear out the current page log before navigating to a new page
+            # (To make sure that assert_no_js_errors() uses current results)
+            logger.debug("Cleaning driver console logs ...")
+            self.driver.get_log("browser")
+        except WebDriverException:
+            pass
+
     # endregion WebDriver Actions
+
+    # region WebElement Actions
+
+    @validate_arguments
+    def slow_scroll_to(
+            self,
+            how: SeleniumBy,
+            selector: str = Field(default="", strict=True, min_length=1),
+            timeout: OptionalInt = None
+    ):
+        """ Slow motion scroll to destination """
+        self.__check_scope__()
+        timeout = self.get_timeout(timeout, constants.SMALL_TIMEOUT)
+        element = self.wait_for_element_visible(how, selector, timeout)
+        try:
+            scroll_distance = get_scroll_distance_to_element(
+                self.driver, element
+            )
+            if abs(scroll_distance) > constants.Values.SSMD:
+                self.__jquery_slow_scroll_to(how, selector)
+            else:
+                self.__slow_scroll_to_element(element)
+        except WebDriverException:
+            self.wait_for_ready_state_complete()
+            time.sleep(0.12)
+            element = self.wait_for_element_visible(how, selector, timeout)
+            self.__slow_scroll_to_element(element)
+
+    @validate_arguments
+    def wait_for_element_visible(
+            self,
+            how: SeleniumBy,
+            selector: str = Field(default="", strict=True, min_length=1),
+            timeout: OptionalInt = None
+    ):
+        self.__check_scope__()
+        timeout = self.get_timeout(timeout, constants.LARGE_TIMEOUT)
+        if is_shadow_selector(selector):
+            return wait_for_shadow_element_visible(self.driver, selector, timeout)
+        return wait_for_element_visible(self.driver, how, selector, timeout)
+
+    def wait_for_element_present(
+            self,
+            how: SeleniumBy,
+            selector: str = Field(default="", strict=True, min_length=1),
+            timeout: OptionalInt = None
+    ):
+        """Waits for an element to appear in the HTML of a page.
+        The element does not need be visible (it may be hidden)."""
+        self.__check_scope__()
+        timeout = self.get_timeout(timeout, constants.LARGE_TIMEOUT)
+        if is_shadow_selector(selector):
+            return wait_for_shadow_element_present(self.driver, selector, timeout)
+        return wait_for_element_present(self.driver, how, selector, timeout)
+
+    # endregion WebElement Actions
+
+    # region JAVASCRIPT Actions
+
+    def __slow_scroll_to_element(self, element):
+        try:
+            slow_scroll_to_element(self.driver, element, self.browser)
+        except JavascriptException | WebDriverException:
+            # Scroll to the element instantly if the slow scroll fails
+            scroll_to_element(self.driver, element)
+
+    # endregion JAVASCRIPT Actions
+
+    # region JQUERY methods
+
+    def __jquery_slow_scroll_to(
+            self,
+            how: SeleniumBy,
+            selector: str = Field(default="", strict=True, min_length=1)
+    ) -> None:
+        element = self.wait_for_element_present(how, selector, constants.SMALL_TIMEOUT)
+        dist = get_scroll_distance_to_element(self.driver, element)
+        time_offset = 0
+        try:
+            if dist and abs(dist) > constants.Values.SSMD:
+                time_offset = int(
+                    float(abs(dist) - constants.Values.SSMD) / 12.5
+                )
+                if time_offset > 950:
+                    time_offset = 950
+        except Exception:
+            time_offset = 0
+        scroll_time_ms = 550 + time_offset
+        sleep_time = 0.625 + (float(time_offset) / 1000.0)
+        scroll_script = (
+                """jQuery([document.documentElement, document.body]).animate({"""
+                """scrollTop: jQuery('%s').offset().top - 130}, %s);"""
+                % (selector, scroll_time_ms)
+        )
+        if is_jquery_activated(self.driver):
+            self.execute_script(scroll_script)
+        else:
+            self.__slow_scroll_to_element(element)
+        self.sleep(sleep_time)
+
+    def execute_script(self, script: str = Field(min_length=5), *args):
+        self.__check_scope__()
+        self.__check_browser__()
+        return self.driver.execute_script(script, *args)
+
+    # endregion JQUERY methods

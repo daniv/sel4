@@ -7,6 +7,8 @@ PROJECT_ROOT = None
 
 PROJECT_PATHS = []
 
+RESOURCES_URLS = []
+
 ROOT_LOG_LEVEL: LogLevelName = "WARNING"
 
 # Inbucket Email address that error messages come from.
