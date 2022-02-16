@@ -11,10 +11,14 @@ from pydantic import FileUrl, HttpUrl, ValidationError, validate_arguments, Fiel
 from selenium.common.exceptions import (
     NoSuchWindowException,
     JavascriptException,
+    StaleElementReferenceException,
+    MoveTargetOutOfBoundsException,
+    ElementNotInteractableException,
     WebDriverException
 )
 from selenium.webdriver.common.by import By
 from selenium.webdriver.remote.webdriver import WebDriver
+from selenium.webdriver.remote.webelement import WebElement
 
 from sel4.conf import settings
 from sel4.core.plugins._webdriver_builder import WebDriverBrowserLauncher, get_driver
@@ -29,7 +33,9 @@ from .page_actions import (
     switch_to_window,
     is_element_present,
     wait_for_element_visible,
-    wait_for_element_present
+    wait_for_element_present,
+    wait_for_element_interactable,
+    is_element_visible
 )
 from .js_utils import (
     wait_for_ready_state_complete,
@@ -147,6 +153,25 @@ class WebDriverTest(BasePytestUnitTestCase):
     def __demo_mode_scroll_if_active(self, how: SeleniumBy, selector: str):
         if self.config.getoption("demo_mode", False):
             self.slow_scroll_to(how, selector)
+
+    def __demo_mode_highlight_if_active(self, how: SeleniumBy, selector: str):
+        if self.config.getoption("demo_mode", False):
+            self.highlight(how, selector)
+        if self.config.getoption("slow_mode", False):
+            time.sleep(0.08)
+            element = self.wait_for_element_visible(how, selector, timeout=constants.SMALL_TIMEOUT)
+            try:
+                scroll_distance = get_scroll_distance_to_element(self.driver, element)
+                if abs(scroll_distance) > constants.Values.SSMD:
+                    self.__jquery_slow_scroll_to(how, selector)
+                else:
+                    self.__slow_scroll_to_element(element)
+            except (StaleElementReferenceException, ElementNotInteractableException):
+                self.wait_for_ready_state_complete()
+                time.sleep(0.12)
+                element = self.wait_for_element_visible(how, selector, constants.SMALL_TIMEOUT)
+                self.__slow_scroll_to_element(element)
+            time.sleep(0.12)
 
     def __quit_all_drivers(self):
         shared_drv = runtime_store.get(shared_driver, None)
@@ -563,6 +588,172 @@ class WebDriverTest(BasePytestUnitTestCase):
     # endregion WebDriver Actions
 
     # region WebElement Actions
+
+    def __scroll_to_element(self, element: WebElement, how: SeleniumBy, selector: str) -> None:
+        success = scroll_to_element(self.driver, element)
+        if not success and selector:
+            self.wait_for_ready_state_complete()
+            element = wait_for_element_visible(self.driver, how, selector, timeout=constants.SMALL_TIMEOUT)
+        self.__demo_mode_pause_if_active(tiny=True)
+
+    def click_link_text(self, link_text: str, timeout: OptionalInt = None):
+        ...
+
+    def click_partial_link_text(self, partial_link_text: str, timeout: OptionalInt = None):
+        ...
+
+    def is_link_text_visible(self, link_text):
+        self.wait_for_ready_state_complete()
+        time.sleep(0.01)
+        return is_element_visible(self.driver, By.LINK_TEXT, link_text)
+
+    def is_partial_link_text_visible(self, partial_link_text):
+        self.wait_for_ready_state_complete()
+        time.sleep(0.01)
+        return is_element_visible(self.driver, By.PARTIAL_LINK_TEXT, partial_link_text)
+
+    @validate_arguments
+    def click(
+            self,
+            how: SeleniumBy,
+            selector: str = Field(default="", strict=True, min_length=1),
+            timeout: OptionalInt = None,
+            delay=0, scroll=True
+    ) -> None:
+        self.__check_scope__()
+        self.get_timeout(timeout, constants.SMALL_TIMEOUT)
+        if delay and (type(delay) in [int, float]) and delay > 0:
+            time.sleep(delay)
+        # original_selector = selector
+        # original_how = how
+        #
+        # selector, by = self.__recalculate_selector(selector, by)
+        if how == By.LINK_TEXT:
+            if not self.is_link_text_visible(selector):
+                # Handle a special case of links hidden in dropdowns
+                self.click_link_text(selector, timeout=timeout)
+                return
+        if how == By.PARTIAL_LINK_TEXT:
+            if not self.is_partial_link_text_visible(selector):
+                # Handle a special case of partial links hidden in dropdowns
+                self.click_partial_link_text(selector, timeout=timeout)
+                return
+        if is_shadow_selector(selector):
+            shadow_click(self.driver, selector)
+            return
+        element = wait_for_element_interactable(self.driver, how, selector, timeout=timeout)
+        self.__demo_mode_highlight_if_active(original_selector, original_by)
+        demo_mode = self.config.getoption("demo_mode", False)
+        slow_mode = self.config.getoption("demo_mode", False)
+        if not demo_mode and not slow_mode:
+            self.__scroll_to_element(element, how, selector)
+        pre_action_url = self.driver.current_url
+
+        def handle_anchor():
+            # Handle a special case of opening a new tab (headless)
+            try:
+                href = element.get_attribute("href").strip()
+                onclick = element.get_attribute("onclick")
+                target = element.get_attribute("target")
+                new_tab = False
+                if target == "_blank":
+                    _new_tab = True
+                if new_tab and self.__looks_like_a_page_url(href):
+                    if onclick:
+                        try:
+                            self.execute_script(onclick)
+                        except WebDriverException | JavascriptException:
+                            pass
+                    current_window = self.driver.current_window_handle
+                    self.open_new_window()
+                    try:
+                        self.open(href)
+                    except WebDriverException:
+                        pass
+                    self.switch_to_window(current_window)
+                    return
+            except WebDriverException:
+                pass
+
+        def handle_safari():
+            if how == By.LINK_TEXT:
+                self.__jquery_click(how, selector)
+            else:
+                self.__js_click(how, selector)
+
+        def retry_on_stale():
+            nonlocal element
+            element = wait_for_element_interactable(self.driver, how, selector, timeout=timeout)
+            try:
+                self.__scroll_to_element(element, how, selector)
+            except WebDriverException:
+                pass
+            if self.browser == "safari":
+                handle_safari()
+            else:
+                element.click()
+
+        def retry_on_element_not_interactable():
+            nonlocal element
+            element = wait_for_element_interactable(self.driver, how, selector, timeout=timeout)
+            if element.tag_name == "a":
+                handle_anchor()
+            self.__scroll_to_element(element, how, selector)
+            if self.browser == "safari":
+                handle_safari()
+            else:
+                element.click()
+
+        def retry_move_target_or_wd():
+            try:
+                self.__js_click(how, selector)
+            except WebDriverException | JavascriptException:
+                try:
+                    self.__jquery_click(how, selector)
+                except WebDriverException | JavascriptException:
+                    nonlocal element
+                    element = wait_for_element_interactable(self.driver, how, selector, timeout=timeout)
+                    element.click()
+
+        try:
+            if self.browser == "safari":
+                handle_safari()
+            else:
+                try:
+                    if self.config.getoption("headless") and element.tag_name == "a":
+                        # Handle a special case of opening a new tab (headless)
+                        handle_anchor()
+                except WebDriverException:
+                    pass
+                # Normal click
+                logger.debug("Executing normal webelement click")
+                element.click()
+        except StaleElementReferenceException:
+            logger.debug("Recovering from StaleElementReferenceException")
+            self.wait_for_ready_state_complete()
+            time.sleep(0.16)
+            retry_on_stale()
+
+        except ElementNotInteractableException:
+            logger.debug("Recovering from ElementNotInteractableException")
+            self.wait_for_ready_state_complete()
+            time.sleep(0.1)
+            retry_on_element_not_interactable()
+
+        except WebDriverException | MoveTargetOutOfBoundsException as e:
+            logger.debug("Recovering from {e_type}", e_type=e.__class__.__name__)
+            self.wait_for_ready_state_complete()
+            retry_move_target_or_wd()
+
+        if settings.WAIT_FOR_RSC_ON_CLICKS:
+            self.wait_for_ready_state_complete()
+        if demo_mode:
+            if self.driver.current_url != pre_action_url:
+                self.__demo_mode_pause_if_active()
+            else:
+                self.__demo_mode_pause_if_active(tiny=True)
+        elif slow_mode:
+            self.__slow_mode_pause_if_active()
 
     @validate_arguments
     def slow_scroll_to(
