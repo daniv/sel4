@@ -129,6 +129,27 @@ def save_screenshot(
 
 
 @validate_arguments
+def is_element_visible(
+        driver: WebDriver,
+        how: SeleniumBy,
+        selector: str = Field(default="", strict=True, min_length=1)
+) -> bool:
+    """
+    Returns whether the specified element selector is visible on the page.
+
+    :param driver: The Webdriver instance
+    :param how: the By locator
+    :param selector: the selector value
+    :return: True if element is visible, otherwise False
+    """
+    try:
+        element = driver.find_element(by=how, value=selector)
+        return element.is_displayed()
+    except NoSuchElementException:
+        return False
+
+
+@validate_arguments
 def is_element_present(
         driver: WebDriver,
         how: SeleniumBy,

@@ -34,6 +34,7 @@ def is_shadow_selector(selector: str = Field(default="", strict=True, min_length
 
 @validate_arguments()
 def shadow_click(
+    driver: WebDriver,
     selector: str = Field(default="", strict=True, min_length=1),
     timeout: OptionalInt = None,
 ):
@@ -43,6 +44,7 @@ def shadow_click(
 
 @validate_arguments
 def get_shadow_element(
+    driver: WebDriver,
     selector: str = Field(default="", strict=True, min_length=1),
     timeout: OptionalFloat = None,
     must_be_visible=False,

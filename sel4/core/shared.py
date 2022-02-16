@@ -162,3 +162,49 @@ def get_exception_message(
             f'was not present after {timeout} second{"s" if timeout == 1 else ""}! (The actual value was {actual})'
         )
 
+
+def _recalculate_selector(
+        how: SeleniumBy,
+        selector: str,
+        xpath_ok=True
+):
+    _type = type(selector)
+
+
+class SelectorConverter:
+    def __init__(self, how: SeleniumBy,  selector: str):
+        self.how = how
+        self.selector = selector
+
+    def convert_to_css_selector(self) -> str:
+        """This method converts a selector to a CSS_SELECTOR.
+        jQuery commands require a CSS_SELECTOR for finding elements.
+        This method should only be used for jQuery/JavaScript actions.
+        Pure JavaScript doesn't support using a:contains("LINK_TEXT")."""
+        if self.how == By.CSS_SELECTOR or self.how == By.TAG_NAME:
+            return self.selector
+        elif self.how == By.ID:
+            return f"#{self.selector}"
+        elif self.how == By.CLASS_NAME:
+            return f".{self.selector}"
+        elif self.how == By.NAME:
+            return f'[name="{self.selector}"]'
+        elif self.how == By.XPATH:
+            return self.convert_xpath_to_css()
+        elif self.how == By.LINK_TEXT:
+            return f'a:contains("{self.selector}")'
+        elif self.how == By.PARTIAL_LINK_TEXT:
+            return f'a:contains("{self.selector}")'
+        else:
+            raise ValueError(
+                f"Exception: Could not convert {self.how}({self.selector}) to CSS_SELECTOR!"
+            )
+
+    def convert_xpath_to_css(self):
+        from sel4.core.utils.translator import convert_xpath_to_css
+        return str(convert_xpath_to_css(self.selector))
+
+    def convert_css_to_xpath(self):
+        from sel4.core.utils.translator import CssTranslator
+        return CssTranslator().css_to_xpath(self.selector)
+
