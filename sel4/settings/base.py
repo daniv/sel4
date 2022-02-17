@@ -6,6 +6,8 @@ from typing_extensions import Literal
 from sel4 import env
 from sel4.core import constants
 
+DEBUG = False
+
 # this variable will be set during bootstrap
 PROJECT_ROOT = pathlib.Path(os.environ["PROJECT_ROOT"])
 
@@ -37,6 +39,15 @@ SUPPORTED_BROWSERS = Literal[
     constants.Browser.EDGE,
     constants.Browser.REMOTE,
 ]
+
+# Reports widths
+HTML_WIDTH = "1675px"
+HIGHLIGHT_LOOPS = 2
+# Demo Mode has slow scrolling to see where you are on the page better.
+# However, a regular slow scroll takes too long to cover big distances.
+# If the scroll distance is greater than SSMD, a slow scroll speeds up.
+# Smooth Scroll Minimum Distance (for advanced slow scroll)
+SSMD = 900
 
 SWITCH_TO_NEW_TABS_ON_CLICK = env("SWITCH_TO_NEW_TABS_ON_CLICK", bool, True)
 
