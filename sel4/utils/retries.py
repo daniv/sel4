@@ -4,12 +4,12 @@
 import random
 import time
 from functools import partial, wraps
-from typing import Callable, Optional, ParamSpecArgs, ParamSpecKwargs, Tuple, Type
+from typing import Callable, Optional, ParamSpecArgs, ParamSpecKwargs, Tuple, Type, List, Any
 
 # sys.maxint / 2, since Python 3.2 doesn't have a sys.maxint...
 from pydantic import Field, PositiveFloat, PositiveInt, validate_arguments
 
-from sel4.utils.typeutils import AnyCallable, OptionalFloat
+from sel4.utils.typeutils import AnyCallable, OptionalFloat, DictStrAny
 
 _MAX_WAIT = 1_073_741_823
 
@@ -141,8 +141,8 @@ def decorator(caller):
 @validate_arguments(config=dict(arbitrary_types_allowed=True))
 def retry_call(
     func: AnyCallable,
-    f_args: Optional[ParamSpecArgs] = None,
-    f_kwargs: Optional[ParamSpecKwargs] = None,
+    f_args: Optional[List[Any]] = None,
+    f_kwargs: Optional[DictStrAny] = None,
     exceptions: Type[Exception] | Tuple[Type[Exception]] = Exception,
     tries: int = -1,
     delay: float = 0,
