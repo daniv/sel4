@@ -11,16 +11,12 @@ from selenium.webdriver.remote.webelement import WebElement
 
 from ...conf import settings
 from ...contrib.pydantic.validators import WebDriverValidator, WebElementValidator
+from ...utils.typeutils import NoneStr
 from .. import constants
 from ..runtime import runtime_store, time_limit
 from .shared import (
-    SelectorConverter,
-    SeleniumBy,
-    check_if_time_limit_exceeded,
-    escape_quotes_if_needed,
-    state_message,
-)
-from ...utils.typeutils import NoneStr
+    SelectorConverter, SeleniumBy, check_if_time_limit_exceeded,
+    escape_quotes_if_needed, state_message,)
 
 
 @validate_arguments
@@ -348,11 +344,7 @@ def _slow_scroll_to_element(element: WebElement):
         time.sleep(0.045)
 
 
-def highlight_with_js(
-        driver: WebDriver,
-        selector: str = Field(..., strict=True, min_length=1),
-        o_bs: NoneStr = None
-):
+def highlight_with_js(driver: WebDriver, selector: str = Field(..., strict=True, min_length=1), o_bs: NoneStr = None):
     try:
         logger.debug("Closes any pop-up alerts")
         driver.execute_script("")
@@ -419,9 +411,7 @@ def highlight_with_js(
 
 
 def highlight_with_jquery(
-        driver: WebDriver,
-        selector: str = Field(..., strict=True, min_length=1),
-        o_bs: NoneStr = None
+    driver: WebDriver, selector: str = Field(..., strict=True, min_length=1), o_bs: NoneStr = None
 ):
     try:
         # This closes any pop-up alerts
@@ -531,6 +521,7 @@ def add_js_code_from_link(driver: WebDriver, js_link: str):
     if js_link.startswith("//"):
         js_link = "http:" + js_link
     import httpx
+
     js_code = httpx.get(js_link).text
     add_js_code_script = (
         """var body_tag=document.getElementsByTagName('body').item(0);"""
@@ -565,10 +556,7 @@ def add_meta_tag(driver: WebDriver, http_equiv=None, content=None):
     if http_equiv is None:
         http_equiv = "Content-Security-Policy"
     if content is None:
-        content = (
-            "default-src *; style-src 'self' 'unsafe-inline'; "
-            "script-src: 'self' 'unsafe-inline' 'unsafe-eval'"
-        )
+        content = "default-src *; style-src 'self' 'unsafe-inline'; " "script-src: 'self' 'unsafe-inline' 'unsafe-eval'"
     script_to_add_meta = """function injectMeta() {
            var meta_tag=document.createElement('meta');
            meta_tag.httpEquiv="%s";
@@ -580,5 +568,3 @@ def add_meta_tag(driver: WebDriver, http_equiv=None, content=None):
         content,
     )
     driver.execute_script(script_to_add_meta)
-
-
