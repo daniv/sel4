@@ -1,6 +1,7 @@
 import os
 import pathlib
 import sys
+from enum import unique
 from typing import TYPE_CHECKING, List, Optional
 
 from dictor import dictor
@@ -10,12 +11,22 @@ from pydantic import BaseModel, DirectoryPath, Field, FilePath, constr
 from sel4.conf import settings
 
 from ...core import constants
+from ...utils.enumutils import IntEnum
 from ...utils.typeutils import NoneStr
 
 if TYPE_CHECKING:
     from selenium.webdriver.chrome.options import Options as ChromeOptions
     from selenium.webdriver.edge.options import Options as EdgeOptions
     from selenium.webdriver.remote.webdriver import WebDriver
+
+
+@unique
+class BrowserLogLevel(IntEnum):
+    """options.add_argument('--log-level=1')"""
+    INFO = 0
+    WARNING = 1
+    LOG_ERROR = 2
+    LOG_FATAL = 3
 
 
 class WebDriverBrowserLauncher(BaseModel):
@@ -56,8 +67,6 @@ class WebDriverBrowserLauncher(BaseModel):
             os.chmod(driver_path, mode)
 
 
-
-
 def get_driver(launcher: WebDriverBrowserLauncher) -> 'WebDriver':
     if launcher.use_grid:
         pass
@@ -72,96 +81,96 @@ def get_local_driver(launcher: WebDriverBrowserLauncher) -> 'WebDriver':
     """
     from selenium import webdriver
     from selenium.common.exceptions import WebDriverException
-    browser_name = launcher.browser_name
-    if browser_name == constants.Browser.FIREFOX:
-        ...
+    match launcher.browser_name:
+        case constants.Browser.FIREFOX:
+            ...
 
-    elif browser_name == constants.Browser.EDGE:
-        ...
+        case constants.Browser.EDGE:
+            ...
 
-    elif launcher.browser_name == constants.Browser.SAFARI:
-        ...
+        case constants.Browser.SAFARI:
+            ...
 
-    elif browser_name == constants.Browser.GOOGLE_CHROME:
-        logger.info("Configuring chromedriver before launch browser instance")
+        case constants.Browser.GOOGLE_CHROME:
+            logger.info("Configuring chromedriver before launch browser instance")
 
-        def set_executable_driver_path():
-            from webdrivermanager import ChromeDriverManager
-            if sys.platform.startswith("win"):
-                executable = ChromeDriverManager.driver_filenames["win"]
-            elif sys.platform.startswith("darwin"):
-                executable = ChromeDriverManager.driver_filenames["mac"]
-            else:
-                executable = ChromeDriverManager.driver_filenames["linux"]
-            executables: pathlib.Path = dict(settings.WEBDRIVER_MANAGER_PATHS).get("executables")
-            local_chromedriver = executables.joinpath("chrome", executable)
-            launcher.driver_path = local_chromedriver
+            def set_executable_driver_path():
+                from webdrivermanager import ChromeDriverManager
+                if sys.platform.startswith("win"):
+                    executable = ChromeDriverManager.driver_filenames["win"]
+                elif sys.platform.startswith("darwin"):
+                    executable = ChromeDriverManager.driver_filenames["mac"]
+                else:
+                    executable = ChromeDriverManager.driver_filenames["linux"]
+                executables: pathlib.Path = dict(settings.WEBDRIVER_MANAGER_PATHS).get("executables")
+                local_chromedriver = executables.joinpath("chrome", executable)
+                launcher.driver_path = local_chromedriver
 
-        try:
-            set_executable_driver_path()
-            chrome_options = set_chrome_options(launcher)
-            if launcher.driver_path:
-                try:
-                    launcher.make_driver_executable_if_not()
-                except Exception as e:
-                    logger.debug(
-                        "\nWarning: Could not make chromedriver executable: {}", e
-                    )
-            if not launcher.headless or "linux" not in sys.platform:
-                try:
-                    log_folder: pathlib.Path = dict(settings.PROJECT_PATHS).get("LOGS")
-                    service_log = log_folder.joinpath("chrome_service.log")
-                    from selenium.webdriver.chrome.service import Service
-                    service = Service(
-                        executable_path=str(launcher.driver_path),
-                        log_path=str(service_log)
-                    )
-                    driver = webdriver.Chrome(
-                        chrome_options=chrome_options,
-                        service=service
-                    )
-
-                except WebDriverException as e:
-                    headless = True
-                    headless_options = set_chrome_options(launcher)
-                    args = " ".join(sys.argv)
-                    if ("-n" in sys.argv or " -n=" in args or args == "-c"):
-                        ...
-                    else:
-                        ...
-                    if launcher.driver_path.exists():
-                        from selenium.webdriver.chrome.service import (
-                            Service as ChromeService,
+            try:
+                set_executable_driver_path()
+                chrome_options = set_chrome_options(launcher)
+                if launcher.driver_path:
+                    try:
+                        launcher.make_driver_executable_if_not()
+                    except Exception as e:
+                        logger.debug(
+                            "\nWarning: Could not make chromedriver executable: {}", e
                         )
-                        service = ChromeService(
-                            executable_path=str(launcher.driver_path)
+                if not launcher.headless or "linux" not in sys.platform:
+                    try:
+                        log_folder: pathlib.Path = dict(settings.PROJECT_PATHS).get("LOGS")
+                        service_log = log_folder.joinpath("chrome_service.log")
+                        from selenium.webdriver.chrome.service import Service
+                        service = Service(
+                            executable_path=str(launcher.driver_path),
+                            log_path=str(service_log)
                         )
                         driver = webdriver.Chrome(
-                            service=service,
-                            options=chrome_options,
+                            chrome_options=chrome_options,
+                            service=service
                         )
-                    else:
-                        driver = webdriver.Chrome(options=chrome_options)
-                return driver
-            else:  # Running headless on Linux
-                try:
-                    return webdriver.Chrome(options=chrome_options)
-                except WebDriverException as e:
-                    # Use the virtual display on Linux during headless errors
-                    logger.debug(
-                        "\nWarning: Chrome failed to launch in"
-                        " headless mode. Attempting to use the"
-                        " SeleniumBase virtual display on Linux..."
-                    )
-                    chrome_options.headless = False
-                    return webdriver.Chrome(options=chrome_options)
-        except WebDriverException as e:
-            logger.exception(e)
-            return webdriver.Chrome()
-    else:
-        raise Exception(
-            "%s is not a valid browser option for this system!" % browser_name
-        )
+
+                    except WebDriverException as e:
+                        headless = True
+                        headless_options = set_chrome_options(launcher)
+                        args = " ".join(sys.argv)
+                        if ("-n" in sys.argv or " -n=" in args or args == "-c"):
+                            ...
+                        else:
+                            ...
+                        if launcher.driver_path.exists():
+                            from selenium.webdriver.chrome.service import (
+                                Service as ChromeService,
+                            )
+                            service = ChromeService(
+                                executable_path=str(launcher.driver_path)
+                            )
+                            driver = webdriver.Chrome(
+                                service=service,
+                                options=chrome_options,
+                            )
+                        else:
+                            driver = webdriver.Chrome(options=chrome_options)
+                    return driver
+                else:  # Running headless on Linux
+                    try:
+                        return webdriver.Chrome(options=chrome_options)
+                    except WebDriverException as e:
+                        # Use the virtual display on Linux during headless errors
+                        logger.debug(
+                            "\nWarning: Chrome failed to launch in"
+                            " headless mode. Attempting to use the"
+                            " SeleniumBase virtual display on Linux..."
+                        )
+                        chrome_options.headless = False
+                        return webdriver.Chrome(options=chrome_options)
+            except WebDriverException as e:
+                logger.exception(e)
+                return webdriver.Chrome()
+        case _:
+            raise Exception(
+                "%s is not a valid browser option for this system!" % browser_name
+            )
 
 
 def set_chrome_options(launcher: WebDriverBrowserLauncher) -> "ChromeOptions":
@@ -291,7 +300,8 @@ def set_chrome_options(launcher: WebDriverBrowserLauncher) -> "ChromeOptions":
             chrome_options.add_argument(
                 "--disable-blink-features=AutomationControlled"
             )
-        chrome_options.add_experimental_option("useAutomationExtension", False)
+        # -- This option is deprecated:
+        # -- chrome_options.add_experimental_option("useAutomationExtension", False)
     if (settings.DISABLE_CSP_ON_CHROME or launcher.disable_csp) and not launcher.headless:
         # Headless Chrome does not support extensions, which are required
         # for disabling the Content Security Policy on Chrome.
