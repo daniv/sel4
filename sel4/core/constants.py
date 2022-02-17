@@ -73,12 +73,17 @@ class Browser:
         "ipad": None,
         "remote": None,
     }
-
+    # LoggingPreferences
+    # logPrefs = new
+    # LoggingPreferences()
+    # logPrefs.enable(LogType.BROWSER, Level.ALL)
+    # options.setCapability('goog:loggingPrefs', logPrefs)
     SETTINGS = {
         "chrome": {
             "arguments": [
                 "--test-type",
-                "--log-level=3",
+                "--enable-logging",
+                "--log-level={log_level}",
                 "--no-first-run",
                 "--disable-translate",
                 "--allow-file-access-from-files",
