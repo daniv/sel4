@@ -103,14 +103,13 @@ import pathlib
 import re
 import sys
 from collections import defaultdict
-from typing import TYPE_CHECKING, List, Optional, Sequence, cast
+from typing import TYPE_CHECKING, List, Optional, Sequence, cast, Any, Union
 
 from loguru import logger
 from pytest import StashKey, fixture, hookimpl
 from rich import get_console
 
 from sel4.contrib.argparse import argtypes
-from sel4.core.dashboard import Dashboard, TestId
 from sel4.core.exceptions import ImproperlyConfigured
 from sel4.core.runtime import runtime_store
 
@@ -317,6 +316,8 @@ def pytest_configure(config: "Config") -> None:
 
     :param config: The pytest Config object instance
     """
+    from sel4.conf import settings
+    settings.DEBUG = "pydevd" in sys.modules
     config_logger = logger.bind(task="config".rjust(10, " "))
 
     config_logger.trace("Storing stash key for pytestconfig")
@@ -503,6 +504,30 @@ def pytest_unconfigure(config: "Config") -> None:
 
 # endregion pytest_unconfigure(config)
 
+
+# region pytest_exception_interact(node, call, report)from
+
+if TYPE_CHECKING:
+    from pytest import CallInfo, Item, CollectReport, TestReport
+
+
+def pytest_exception_interact(
+        node: Union["Item", "Collector"],
+        call: "CallInfo[Any]",
+        report: Union["CollectReport", "TestReport"]
+) -> None:
+    from pytest import Item
+    from sel4.contrib.pytest.exception_interact import item_exception_interact
+    if isinstance(node, Item):
+        item_exception_interact(node, call, report)
+
+# endregion pytest_exception_interact(node, call, report)
+if TYPE_CHECKING:
+    from pytest import Metafunc
+def pytest_generate_tests(metafunc: "Metafunc"):
+    if 'driver' in metafunc.fixturenames and metafunc.config.option.drivers:
+        metafunc.parametrize('driver', metafunc.config.option.drivers, indirect=True)
+
 ########################################################################################################################
 # PYTEST HOOKS HELPERS
 ########################################################################################################################
@@ -661,6 +686,7 @@ def webdriver_test_fixture(request: "FixtureRequest", cache):
     from sel4.core.webdrivertest import WebDriverTest
 
     wd_class = WebDriverTest.from_parent(request.node, name="webdriver_test")
+    setattr(request.config, "_webdriver_test", wd_class)
     wd_class.setup()
     needs_teardown = StashKey[bool]()
     wd_class.stash[needs_teardown] = True

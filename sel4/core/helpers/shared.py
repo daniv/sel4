@@ -5,8 +5,8 @@ from typing import Literal
 from loguru import logger
 from selenium.webdriver.common.by import By
 
-from .exceptions import TimeLimitExceededException
-from .runtime import runtime_store, start_time_ms, time_limit
+from sel4.core.exceptions import TimeLimitExceededException
+from sel4.core.runtime import runtime_store, start_time_ms, time_limit
 
 SeleniumBy = Literal[
     By.ID,
@@ -83,36 +83,36 @@ def get_exception_message(
             f'Element {how}="{selector}" on {path}"\n'
             f'\twas not present after {timeout} second{"s" if timeout == 1 else ""}!'
         )
-    if name == "hidden":
-        return (
-            f'Element {how}="{selector}" on {path}"\n'
-            f'\twas hidden after {timeout} second{"s" if timeout == 1 else ""}!'
-        )
-    if name == "disabled":
-        return (
-            f'Element {how}="{selector}" on {path}"\n'
-            f'\twas disabled after {timeout} second{"s" if timeout == 1 else ""}!'
-        )
-    if name == "stale":
-        return (
-            f'Element {how}="{selector}" on {path}"\n'
-            f'\twas not present on DOM (stale) after {timeout} second{"s" if timeout == 1 else ""}!'
-        )
-    if name == "visible":
-        return (
-            f'Element {how}="{selector}" on {path}\n'
-            f'\twas still visible after {timeout} second{"s" if timeout == 1 else ""}!'
-        )
-    if name == "enabled":
-        return (
-            f'Element {how}="{selector}" on {path}\n'
-            f'\twas still enabled after {timeout} second{"s" if timeout == 1 else ""}!'
-        )
-    if name == "present":
-        return (
-            f'Element {how}="{selector}" on {path}\n'
-            f'\twas still present after {timeout} second{"s" if timeout == 1 else ""}!'
-        )
+    # if name == "hidden":
+    #     return (
+    #         f'Element {how}="{selector}" on {path}"\n'
+    #         f'\twas hidden after {timeout} second{"s" if timeout == 1 else ""}!'
+    #     )
+    # if name == "disabled":
+    #     return (
+    #         f'Element {how}="{selector}" on {path}"\n'
+    #         f'\twas disabled after {timeout} second{"s" if timeout == 1 else ""}!'
+    #     )
+    # if name == "stale":
+    #     return (
+    #         f'Element {how}="{selector}" on {path}"\n'
+    #         f'\twas not present on DOM (stale) after {timeout} second{"s" if timeout == 1 else ""}!'
+    #     )
+    # if name == "visible":
+    #     return (
+    #         f'Element {how}="{selector}" on {path}\n'
+    #         f'\twas still visible after {timeout} second{"s" if timeout == 1 else ""}!'
+    #     )
+    # if name == "enabled":
+    #     return (
+    #         f'Element {how}="{selector}" on {path}\n'
+    #         f'\twas still enabled after {timeout} second{"s" if timeout == 1 else ""}!'
+    #     )
+    # if name == "present":
+    #     return (
+    #         f'Element {how}="{selector}" on {path}\n'
+    #         f'\twas still present after {timeout} second{"s" if timeout == 1 else ""}!'
+    #     )
     if name == "text":
         text = kwargs.pop("text")
         return (
@@ -162,3 +162,57 @@ def get_exception_message(
             f'was not present after {timeout} second{"s" if timeout == 1 else ""}! (The actual value was {actual})'
         )
 
+
+class SelectorConverter:
+    def __init__(self, how: SeleniumBy, selector: str):
+        self.how = how
+        self.selector = selector
+
+    def convert_to_css_selector(self) -> str:
+        """This method converts a selector to a CSS_SELECTOR.
+        jQuery commands require a CSS_SELECTOR for finding elements.
+        This method should only be used for jQuery/JavaScript actions.
+        Pure JavaScript doesn't support using a:contains("LINK_TEXT")."""
+        if self.how == By.CSS_SELECTOR or self.how == By.TAG_NAME:
+            return self.selector
+        elif self.how == By.ID:
+            return f"#{self.selector}"
+        elif self.how == By.CLASS_NAME:
+            return f".{self.selector}"
+        elif self.how == By.NAME:
+            return f'[name="{self.selector}"]'
+        elif self.how == By.XPATH:
+            return self.convert_xpath_to_css()
+        elif self.how == By.LINK_TEXT:
+            return f'a:contains("{self.selector}")'
+        elif self.how == By.PARTIAL_LINK_TEXT:
+            return f'a:contains("{self.selector}")'
+        else:
+            raise ValueError(
+                f"Exception: Could not convert {self.how}({self.selector}) to CSS_SELECTOR!"
+            )
+
+    def convert_xpath_to_css(self):
+        from sel4.core.helpers.translator import convert_xpath_to_css
+        return str(convert_xpath_to_css(self.selector))
+
+    def convert_css_to_xpath(self):
+        from sel4.core.helpers.translator import CssTranslator
+        return CssTranslator().css_to_xpath(self.selector)
+
+
+def _are_quotes_escaped(string: str) -> bool:
+    if string.count("\\'") != string.count("'") or (
+            string.count('\\"') != string.count('"')
+    ):
+        return True
+    return False
+
+
+def escape_quotes_if_needed(string: str) -> str:
+    if _are_quotes_escaped(string):
+        if string.count("'") != string.count("\\'"):
+            string = string.replace("'", "\\'")
+        if string.count('"') != string.count('\\"'):
+            string = string.replace('"', '\\"')
+    return string

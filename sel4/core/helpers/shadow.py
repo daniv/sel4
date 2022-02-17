@@ -10,8 +10,8 @@ from selenium.webdriver.remote.webelement import WebElement
 
 from sel4.utils.typeutils import OptionalInt, OptionalFloat
 
-from ..utils.retries import retry_call
-from . import constants, page_actions
+from sel4.utils.retries import retry_call
+from sel4.core import constants
 
 
 def _fail_if_invalid_shadow_selector_usage(selector: str = Field(default="", strict=True, min_length=1)):
@@ -34,6 +34,7 @@ def is_shadow_selector(selector: str = Field(default="", strict=True, min_length
 
 @validate_arguments()
 def shadow_click(
+    driver: WebDriver,
     selector: str = Field(default="", strict=True, min_length=1),
     timeout: OptionalInt = None,
 ):
@@ -43,6 +44,7 @@ def shadow_click(
 
 @validate_arguments
 def get_shadow_element(
+    driver: WebDriver,
     selector: str = Field(default="", strict=True, min_length=1),
     timeout: OptionalFloat = None,
     must_be_visible=False,
