@@ -7,16 +7,14 @@ from selenium.common.exceptions import (
     StaleElementReferenceException, ElementNotInteractableException
 )
 from selenium.webdriver.remote.webdriver import WebDriver
-from selenium.webdriver.remote.webelement import WebElement
 
+from .js_utils import (
+    get_scroll_distance_to_element,
+)
 from .shared import SeleniumBy
+from .. import constants
 from ..runtime import pytestconfig, runtime_store
 from ...conf import settings
-from ...utils.typeutils import OptionalInt
-from .js_utils import (
-    get_scroll_distance_to_element
-)
-from .. import constants
 
 if TYPE_CHECKING:
     from pytest import Config
@@ -74,22 +72,15 @@ def demo_mode_highlight_if_active(
         try:
             scroll_distance = get_scroll_distance_to_element(driver, element)
             if abs(scroll_distance) > settings.SSMD:
-                self.__jquery_slow_scroll_to(selector, by)
+                from .js_utils import jquery_slow_scroll_to
+                jquery_slow_scroll_to(driver, how, selector)
             else:
-                self.__slow_scroll_to_element(element)
+                from .js_utils import slow_scroll_to_element
+                slow_scroll_to_element(element)
         except StaleElementReferenceException | ElementNotInteractableException:
             test.wait_for_ready_state_complete()
             time.sleep(0.12)
-            element = self.wait_for_element_visible(
-                selector, by=by, timeout=settings.SMALL_TIMEOUT
-            )
-            self.__slow_scroll_to_element(element)
+            element = test.wait_for_element_visible(how, selector, constants.SMALL_TIMEOUT)
+            from .js_utils import slow_scroll_to_element
+            slow_scroll_to_element(element)
         time.sleep(0.12)
-
-
-def _slow_scroll_to_element(element: WebElement):
-    try:
-        slow_scroll_to_element(self.driver, element, self.browser)
-    except Exception:
-        # Scroll to the element instantly if the slow scroll fails
-        scroll_to_element(element)

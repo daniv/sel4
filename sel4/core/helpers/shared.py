@@ -20,25 +20,6 @@ SeleniumBy = Literal[
 ]
 
 
-def check_if_time_limit_exceeded():
-    if runtime_store.get(time_limit, None):
-        _time_limit = runtime_store[time_limit]
-        now_ms = int(time.time() * 1000)
-        _start_time_ms = runtime_store[start_time_ms]
-        time_limit_ms = int(_time_limit * 1000.0)
-
-        if now_ms > _start_time_ms + time_limit_ms:
-            display_time_limit = time_limit
-            plural = "s"
-            if float(int(time_limit)) == float(time_limit):
-                display_time_limit = int(time_limit)
-                if display_time_limit == 1:
-                    plural = ""
-            message = f"This test has exceeded the time limit of {display_time_limit} second{plural}!"
-            message = "\n " + message
-            raise TimeLimitExceededException(message)
-
-
 def state_message(state, now, st, retry, how=None, sel=None, to: float = 0.0):
     import humanize
 

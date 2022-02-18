@@ -59,7 +59,7 @@ def find_element(
 
 
 @validate_arguments
-def find_elements_by(
+def find_elements(
         driver: WebDriver,
         how: SeleniumBy,
         selector: str = Field(..., strict=True, min_length=1)
@@ -163,7 +163,7 @@ def wait_for_element_absent(
 def wait_for_element_visible(
         driver: WebDriver,
         how: SeleniumBy,
-        selector: str = Field(default="", strict=True, min_length=1),
+        selector: str = Field(..., strict=True, min_length=1),
         timeout: OptionalInt = constants.LARGE_TIMEOUT
 ) -> WebElement:
     """
@@ -235,7 +235,7 @@ def wait_for_element_visible(
 def wait_for_element_not_visible(
         driver: WebDriver,
         how: SeleniumBy,
-        selector: str = Field(default="", strict=True, min_length=1),
+        selector: str = Field(..., strict=True, min_length=1),
         timeout: OptionalInt = constants.LARGE_TIMEOUT
 ):
     """
@@ -550,40 +550,6 @@ def wait_for_css_query_selector(
 # endregion Wait Functions
 
 
-
-
-
-
-
-
-
-def demo_mode_highlight_if_active(element: WebElement) -> None:
-    element = WebElementValidator.validate(element)
-    config: "Config" = runtime_store[pytestconfig]
-    demo_mode = config.getoption("demo_mode", skip=True)
-    slow_mode = config.getoption("slow_mode", False)
-    test = getattr(config, "_webdriver_test")
-    if demo_mode:
-        highlight(element)
-    elif slow_mode:
-        time.sleep(0.08)
-        wait_for_element_visible(element)
-    try:
-        scroll_distance = get_scroll_distance_to_element(element)
-        if abs(scroll_distance) > settings.SSMD:
-            self.__jquery_slow_scroll_to(selector, by)
-        else:
-            self.__slow_scroll_to_element(element)
-    except StaleElementReferenceException | ElementNotInteractableException:
-        test.wait_for_ready_state_complete()
-        time.sleep(0.12)
-        element = self.wait_for_element_visible(
-            selector, by=by, timeout=settings.SMALL_TIMEOUT
-        )
-        self.__slow_scroll_to_element(element)
-    time.sleep(0.12)
-
-
 def double_click(element: WebElement):
     demo_mode_highlight_if_active(element)
     if not self.demo_mode and not self.slow_mode:
@@ -671,50 +637,8 @@ def class_list(
 
 # region Highlight Functions
 
-@validate_arguments
-def highlight_click(
-        driver: WebDriver,
-        how: SeleniumBy,
-        selector: str = Field(default="", strict=True, min_length=1),
-        scroll: bool = True
-):
-    config: "Config" = runtime_store[pytestconfig]
-    demo_mode = config.getoption("demo_mode", skip=True)
-
-    if not demo_mode:
-        highlight(driver, how, selector, scroll=scroll)
-    test = getattr(config, "_webdriver_test")
-    test.click(driver, how, selector)
 
 
-@validate_arguments
-def highlight_update_text(
-        driver: WebDriver,
-        how: SeleniumBy,
-        selector: str = Field(default="", strict=True, min_length=1),
-        text: NoneStr = None,
-        scroll: bool = True
-) -> None:
-    """Highlights the element and then types text into the field."""
-    if text is None:
-        return
-    config: "Config" = runtime_store[pytestconfig]
-    demo_mode = config.getoption("demo_mode", skip=True)
-    if not demo_mode:
-        highlight(driver, how, selector, scroll=scroll)
-    test = getattr(config, "_webdriver_test")
-    test.update_text(how, selector, text)
-
-
-@validate_arguments
-def highlight(
-        driver: WebDriver,
-        how: SeleniumBy,
-        selector: str = Field(default="", strict=True, min_length=1),
-        timeout: OptionalInt = constants.LARGE_TIMEOUT,
-        scroll: bool = True
-):
-    wait_for_element_visible(driver, how, selector, constants.MINI_TIMEOUT)
 
 
 # endregion Highlight Functions

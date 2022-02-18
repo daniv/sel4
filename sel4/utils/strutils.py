@@ -157,19 +157,22 @@ def parse_bool(text: str) -> bool:
     return bool(strtobool(text))
 
 
-def get_uuid4():
+def get_uuid4() -> str:
+    """Gets a random uuid4 string"""
     return str(uuid.uuid4())
 
 
-def platform_label():
+def platform_label() -> str:
+    """Gets the current platform"""
     major_version, _, __ = platform.python_version_tuple()
     implementation = platform.python_implementation()
     return f'{implementation.lower()}{major_version}'
 
 
-def thread_tag():
+def thread_tag() -> str:
     return '{0}-{1}'.format(os.getpid(), threading.current_thread().name)
 
 
-def host_tag():
+def host_tag() -> str:
+    """Returns the hostname"""
     return socket.gethostname()

@@ -1,4 +1,4 @@
-""" Parametrizing conditional raising:
+"""Parametrizing conditional raising.
 
 Different options for test IDs:
 Indirect parametrization: https://docs.pytest.org/en/latest/example/parametrize.html
@@ -6,7 +6,6 @@ Markers: https://docs.pytest.org/en/6.2.x/example/markers.html
 writing hooks: https://docs.pytest.org/en/latest/how-to/writing_hook_functions.html
 pytest hooks: writing
 stash: https://docs.pytest.org/en/latest/reference/reference.html#pytest.Stash
-
 
 Initialization Hooks
 ====================
@@ -102,11 +101,11 @@ import os
 import pathlib
 import re
 import sys
+import pytest
 from collections import defaultdict
 from typing import TYPE_CHECKING, List, Optional, Sequence, cast, Any, Union
 
 from loguru import logger
-from pytest import StashKey, fixture, hookimpl
 from rich import get_console
 
 from sel4.contrib.argparse import argtypes
@@ -115,10 +114,8 @@ from sel4.core.runtime import runtime_store
 
 pytest_plugins = ["pytester"]
 
-
 if TYPE_CHECKING:
     from _pytest.config import _PluggyPlugin
-    from pytest import Config, Parser, PytestPluginManager
 
 
 ########################################################################################################################
@@ -131,7 +128,7 @@ if TYPE_CHECKING:
 # region pytest_addhooks(pluginmanager)
 
 
-def pytest_addhooks(pluginmanager: "PytestPluginManager") -> None:
+def pytest_addhooks(pluginmanager: pytest.PytestPluginManager) -> None:
     """Called at plugin registration time to allow adding new hooks via a call to pluginmanager.
 
     :param pluginmanager: pytest plugin manager.
@@ -145,13 +142,14 @@ def pytest_addhooks(pluginmanager: "PytestPluginManager") -> None:
     # pluginmanager.add_hookspecs(PytestHooks)
     pluginmanager.add_hookcall_monitoring(before=_before_hook, after=_after_hook)
 
+
 # endregion pytest_addhooks(pluginmanager)
 
 # region pytest_addoption(parser, pluginmanager)
 
 
-@hookimpl
-def pytest_addoption(parser: "Parser", pluginmanager: "PytestPluginManager") -> None:
+@pytest.hookimpl
+def pytest_addoption(parser: pytest.Parser, pluginmanager: pytest.PytestPluginManager) -> None:
     """
     Register argparse-style options and ini-style config values, called once at the beginning of a test run.
 
@@ -300,14 +298,15 @@ def pytest_addoption(parser: "Parser", pluginmanager: "PytestPluginManager") -> 
             '\n  (DO NOT combine "--forked" with "--rs"/"--reuse-session"!)\n'
         )
 
+
 # endregion pytest_addoption(parser, pluginmanager)
 
 
 # region pytest_configure(config)
 
 
-@hookimpl
-def pytest_configure(config: "Config") -> None:
+@pytest.hookimpl
+def pytest_configure(config: pytest.Config) -> None:
     """
     Allow plugins and conftest files to perform initial configuration.
 
@@ -358,7 +357,7 @@ def pytest_configure(config: "Config") -> None:
 
     from sel4.contrib.pytest.utils.metadata import Metadata
 
-    metadata_key = StashKey[Metadata]
+    metadata_key = pytest.StashKey[Metadata]
     runtime_store[metadata_key] = metadata
 
     if not hasattr(config, "workerinput"):
@@ -419,9 +418,9 @@ def pytest_configure(config: "Config") -> None:
 
 
 def pytest_plugin_registered(
-    plugin: "_PluggyPlugin", manager: "PytestPluginManager"
+        plugin: "_PluggyPlugin", manager: pytest.PytestPluginManager
 ) -> None:
-    """ A new pytest plugin got registered.
+    """A new pytest plugin got registered.
 
     :param plugin: The plugin module or instance.
     :param manager: pytest plugin manager.
@@ -453,9 +452,6 @@ def pytest_plugin_registered(
 
 # region pytest_sessionstart(session)
 
-if TYPE_CHECKING:
-    from pytest import Session
-
 
 _MARKDOWN = """
 PYTEST SESSION STARTED
@@ -463,8 +459,8 @@ PYTEST SESSION STARTED
 """
 
 
-@hookimpl(trylast=True)
-def pytest_sessionstart(session: "Session"):
+@pytest.hookimpl(trylast=True)
+def pytest_sessionstart(session: pytest.Session):
     from rich.markdown import Markdown
 
     md = Markdown(_MARKDOWN)
@@ -481,7 +477,7 @@ def pytest_sessionstart(session: "Session"):
 # region pytest_unconfigure(config)
 
 
-def pytest_unconfigure(config: "Config") -> None:
+def pytest_unconfigure(config: pytest.Config) -> None:
     """
     Called before test process is exited.
 
@@ -507,30 +503,29 @@ def pytest_unconfigure(config: "Config") -> None:
 
 # region pytest_exception_interact(node, call, report)from
 
-if TYPE_CHECKING:
-    from pytest import CallInfo, Item, CollectReport, TestReport
-
 
 def pytest_exception_interact(
-        node: Union["Item", "Collector"],
-        call: "CallInfo[Any]",
-        report: Union["CollectReport", "TestReport"]
+        node: pytest.Item | pytest.Collector,
+        call: pytest.CallInfo[Any],
+        report: pytest.CollectReport | pytest.TestReport
 ) -> None:
     from pytest import Item
     from sel4.contrib.pytest.exception_interact import item_exception_interact
     if isinstance(node, Item):
         item_exception_interact(node, call, report)
 
+
 # endregion pytest_exception_interact(node, call, report)
-if TYPE_CHECKING:
-    from pytest import Metafunc
-def pytest_generate_tests(metafunc: "Metafunc"):
+
+def pytest_generate_tests(metafunc: "pytest.Metafunc"):
     if 'driver' in metafunc.fixturenames and metafunc.config.option.drivers:
         metafunc.parametrize('driver', metafunc.config.option.drivers, indirect=True)
+
 
 ########################################################################################################################
 # PYTEST HOOKS HELPERS
 ########################################################################################################################
+
 def _before_hook(hook_name: str, hook_impls: List, kwargs: dict):
     with logger.contextualize(task="setup".rjust(10, " ")):
         if len(hook_impls):
@@ -566,7 +561,7 @@ def _after_hook(outcome, hook_name: str, hook_impls: List, kwargs: dict):
             logger.error("excinfo: {}", outcome.excinfo)
 
 
-def cleanup_factory(pluginmanager: "PytestPluginManager", plugin):
+def cleanup_factory(pluginmanager: "pytest.PytestPluginManager", plugin):
     def clean_up():
         name = plugin.name
         pluginmanager.unregister(name=name)
@@ -584,13 +579,13 @@ def cleanup_factory(pluginmanager: "PytestPluginManager", plugin):
 # region PYTEST INITIALIZATION HOOK IMPLEMENTATIONS
 
 if TYPE_CHECKING:
-    from pytest import Collector, Function, Item
+    from pytest import Collector, Function  # noqa PT013
 
 
 # region pytest_pyfunc_call(pyfuncitem)
 
 
-@hookimpl(hookwrapper=True)
+@pytest.hookimpl(hookwrapper=True)
 def pytest_pyfunc_call(pyfuncitem: "Function") -> Optional[object]:
     # do_something_before_next_hook_executes()
     outcome = yield
@@ -620,7 +615,7 @@ def pytest_collectstart(collector: "Collector") -> None:
 # region pytest_item_collected(item)
 
 
-def pytest_itemcollected(item: "Item"):
+def pytest_itemcollected(item: "pytest.Item"):
     from sel4.core import runtime
 
     def get_test_ids():
@@ -674,8 +669,8 @@ if TYPE_CHECKING:
     from _pytest.fixtures import FixtureRequest
 
 
-@fixture(name="webdriver_test")
-def webdriver_test_fixture(request: "FixtureRequest", cache):
+@pytest.fixture(name="webdriver_test")
+def webdriver_test_fixture(request: "pytest.FixtureRequest", cache):
     if not request.config.pluginmanager.has_plugin("sel4.core.plugins.webdriver"):
         from sel4.core.exceptions import ImproperlyConfigured
 

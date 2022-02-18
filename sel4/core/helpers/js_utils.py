@@ -13,7 +13,7 @@ from ...conf import settings
 from ...contrib.pydantic.validators import WebDriverValidator, WebElementValidator
 from ...utils.typeutils import NoneStr
 from .. import constants
-from ..runtime import runtime_store, time_limit
+from ..runtime import runtime_store, time_limit, pytestconfig
 from .shared import (
     SelectorConverter, SeleniumBy, check_if_time_limit_exceeded,
     escape_quotes_if_needed, state_message,)
@@ -237,7 +237,11 @@ def raise_unable_to_load_jquery_exception(driver: WebDriver):
 
 
 @validate_arguments
-def js_click(driver: WebDriver, how: SeleniumBy, selector: str = Field(default="", strict=True, min_length=1)) -> None:
+def js_click(
+        driver: WebDriver,
+        how: SeleniumBy,
+        selector: str = Field(default="", strict=True, min_length=1)
+) -> None:
     """Clicks an element using pure JS. Does not use jQuery."""
     css_selector = SelectorConverter(how, selector).convert_to_css_selector()
     css_selector = re.escape(css_selector)  # Add "\\" to special chars
@@ -256,6 +260,44 @@ def js_click(driver: WebDriver, how: SeleniumBy, selector: str = Field(default="
         % css_selector
     )
     driver.execute_script(script)
+
+
+@validate_arguments
+def jquery_slow_scroll_to(
+        driver: WebDriver,
+        how: SeleniumBy,
+        selector: str = Field(default="", strict=True, min_length=1)
+) -> None:
+    from .element_actions import wait_for_element_present
+    element = wait_for_element_present(driver, how, selector, constants.SMALL_TIMEOUT)
+    dist = get_scroll_distance_to_element(element)
+    time_offset = 0
+    try:
+        if dist and abs(dist) > settings.SSMD:
+            time_offset = int(
+                float(abs(dist) - settings.SSMD) / 12.5
+            )
+            if time_offset > 950:
+                time_offset = 950
+    except Exception:
+        time_offset = 0
+
+    config = runtime_store.get(pytestconfig, None)
+    test = getattr(config, "_webdriver_test")
+    scroll_time_ms = 550 + time_offset
+    sleep_time = 0.625 + (float(time_offset) / 1000.0)
+    selector = self.convert_to_css_selector(selector, by=by)
+    selector = self.__make_css_match_first_element_only(selector)
+    scroll_script = (
+        """jQuery([document.documentElement, document.body]).animate({"""
+        """scrollTop: jQuery('%s').offset().top - 130}, %s);"""
+        % (selector, scroll_time_ms)
+    )
+    if is_jquery_activated(driver):
+        test.execute_script(scroll_script)
+    else:
+        slow_scroll_to_element(element)
+    test.sleep(sleep_time)
 
 
 @validate_arguments
@@ -284,7 +326,7 @@ def safe_execute_script(driver: WebDriver, script, *args) -> Any:
     return driver.execute_script(script, *args)
 
 
-def slow_scroll_to_element(element):
+def slow_scroll_to_element(element: WebElement) -> None:
     element = WebElementValidator.validate(element)
     try:
         _slow_scroll_to_element(element)
@@ -556,7 +598,8 @@ def add_meta_tag(driver: WebDriver, http_equiv=None, content=None):
     if http_equiv is None:
         http_equiv = "Content-Security-Policy"
     if content is None:
-        content = "default-src *; style-src 'self' 'unsafe-inline'; " "script-src: 'self' 'unsafe-inline' 'unsafe-eval'"
+        content = "default-src *; style-src 'self' 'unsafe-inline'; " \
+                  "script-src: 'self' 'unsafe-inline' 'unsafe-eval'"
     script_to_add_meta = """function injectMeta() {
            var meta_tag=document.createElement('meta');
            meta_tag.httpEquiv="%s";

@@ -74,7 +74,7 @@ from .helpers.element_actions import (
     highlight_update_text
 )
 from .runtime import runtime_store, shared_driver, time_limit
-from ..utils.typeutils import OptionalInt
+from ..utils.typeutils import OptionalInt, NoneStr
 
 
 class WebDriverTest(BasePytestUnitTestCase):
@@ -969,12 +969,12 @@ class WebDriverTest(BasePytestUnitTestCase):
             if abs(scroll_distance) > settings.SSMD:
                 jquery_slow_scroll_to(how, selector)
             else:
-                self.__slow_scroll_to_element(element)
+                slow_scroll_to_element(element)
         except WebDriverException:
             self.wait_for_ready_state_complete()
             time.sleep(0.12)
             element = self.wait_for_element_visible(how, selector, timeout)
-            self.__slow_scroll_to_element(element)
+            slow_scroll_to_element(element)
 
     @validate_arguments
     def wait_for_element_visible(
@@ -1053,7 +1053,7 @@ class WebDriverTest(BasePytestUnitTestCase):
     def highlight(
             self,
             how: SeleniumBy,
-            selector: str = Field(default="", strict=True, min_length=1),
+            selector: str = Field(..., strict=True, min_length=1),
             scroll=True
     ) -> None:
         self.__check_scope__()
@@ -1070,7 +1070,7 @@ class WebDriverTest(BasePytestUnitTestCase):
                 self.wait_for_ready_state_complete()
                 time.sleep(0.12)
                 element = wait_for_element_visible(self.driver, how, selector, constants.SMALL_TIMEOUT)
-                self.__slow_scroll_to_element(element)
+                slow_scroll_to_element(element)
 
         selector = self.convert_to_css_selector(how, selector)
         if self.config.getoption("highlights", False):
@@ -1089,37 +1089,39 @@ class WebDriverTest(BasePytestUnitTestCase):
         self.__highlight_with_jquery(selector, loops, o_bs)
         time.sleep(0.065)
 
+    @validate_arguments
     def highlight_click(
             self,
             how: SeleniumBy,
-            selector: str = Field(default="", strict=True, min_length=1),
+            selector: str = Field(..., strict=True, min_length=1),
             scroll=True
     ) -> None:
         self.__check_scope__()
-        highlight_click(self.driver, how, selector, scroll)
+        if not self.config.getoption("demo_mode"):
+            self.highlight(how, selector)
+        self.click(how, selector, scroll)
 
+    @validate_arguments
     def highlight_update_text(
             self,
             how: SeleniumBy,
-            selector: str = Field(default="", strict=True, min_length=1),
-            text: str = Field(...),
-            scroll=True
-    ):
+            selector: str = Field(..., strict=True, min_length=1),
+            text: NoneStr = None,
+            scroll: bool = True
+    ) -> None:
+        """Highlights the element and then types text into the field."""
+        if text is None:
+            return
         self.__check_scope__()
-        highlight_update_text(self.driver, how, selector, text, scroll)
+        if not self.config.getoption("demo_mode"):
+            self.highlight(how, selector, scroll=scroll)
+        self.update_text(how, selector, text, scroll)
 
     # endregion highlight
 
     # endregion WebElement Actions
 
     # region JAVASCRIPT Actions
-
-    def __slow_scroll_to_element(self, element):
-        try:
-            slow_scroll_to_element(self.driver, element, self.browser)
-        except JavascriptException | WebDriverException:
-            # Scroll to the element instantly if the slow scroll fails
-            scroll_to_element(self.driver, element)
 
     # endregion JAVASCRIPT Actions
 
