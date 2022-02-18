@@ -1,6 +1,6 @@
 from typing import Tuple
 
-from sel4.core.helpers.shared import SeleniumBy
+from sel4.core.helpers__.shared import SeleniumBy
 from sel4.core.pages.base_page import Page
 from sel4.core.webdrivertest import WebDriverTest
 

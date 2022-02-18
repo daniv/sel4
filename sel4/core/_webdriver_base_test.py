@@ -17,9 +17,9 @@ from selenium.webdriver.common.by import By
 from . import constants
 from .basetest import PytestUnitTestCase
 from .exceptions import OutOfScopeException
-from .helpers import element_actions
-from .helpers import js_utils
-from .helpers import shared
+from .helpers__ import element_actions
+from .helpers__ import js_utils
+from .helpers__ import shared
 from .runtime import runtime_store, shared_driver
 from ..utils.typeutils import OptionalInt
 from ..conf import settings

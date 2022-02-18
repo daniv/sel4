@@ -9,15 +9,13 @@ from selenium.common.exceptions import (
     NoSuchElementException,
     WebDriverException
 )
+from selenium.webdriver import ActionChains
 from selenium.webdriver.chrome.webdriver import WebDriver
 
 from ...conf import settings
 from ...core import constants
-from ...core.helpers.shared import (
-    check_if_time_limit_exceeded,
-    state_message,
-    SeleniumBy
-)
+from ...core.helpers__.shared import SeleniumBy
+from ...core.helpers__ import shared
 from ...utils.strutils import get_uuid4
 from ...utils.typeutils import NoneStr
 
@@ -47,7 +45,7 @@ def switch_to_window(driver: WebDriver, window: int | str, timeout: int = consta
     exception = None
     if isinstance(window, int):
         for x in range(int(timeout * 10)):
-            check_if_time_limit_exceeded()
+            shared.check_if_time_limit_exceeded()
             try:
                 window_handle = driver.window_handles[window]
                 driver.switch_to.window(window_handle)
@@ -57,7 +55,7 @@ def switch_to_window(driver: WebDriver, window: int | str, timeout: int = consta
                 if now_ms >= stop_ms:
                     exception = e
                     break
-                state_message(f"Switching to window {window}", now_ms, stop_ms, x + 1, to=timeout)
+                shared.state_message(f"Switching to window {window}", now_ms, stop_ms, x + 1, to=timeout)
 
         message = f'Window {window} was not present after {timeout} second{"s" if timeout == 1 else ""}!'
         if not exception:
@@ -67,7 +65,7 @@ def switch_to_window(driver: WebDriver, window: int | str, timeout: int = consta
     else:
         window_handle = window
         for x in range(int(timeout * 10)):
-            check_if_time_limit_exceeded()
+            shared.check_if_time_limit_exceeded()
             try:
                 driver.switch_to.window(window_handle)
                 return True
@@ -76,7 +74,7 @@ def switch_to_window(driver: WebDriver, window: int | str, timeout: int = consta
                 if now_ms >= stop_ms:
                     exception = e
                     break
-                state_message(f"Switching to window {window}", now_ms, stop_ms, x + 1, to=timeout)
+                shared.state_message(f"Switching to window {window}", now_ms, stop_ms, x + 1, to=timeout)
 
         message = f'Window {window} was not present after{timeout} second{"s" if timeout == 1 else ""}!'
         if not exception:
@@ -180,3 +178,5 @@ def is_element_present(
         return True
     except NoSuchElementException:
         return False
+
+

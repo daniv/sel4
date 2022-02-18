@@ -9,8 +9,11 @@ from rich.highlighter import ReprHighlighter
 
 from sel4.utils.typeutils import OptionalFloat, OptionalInt, NoneStr
 from .exceptions import TimeLimitExceededException
+from .runtime import runtime_store
 
 from ..conf import settings
+from .helpers__.shared import check_if_time_limit_exceeded
+
 
 
 class PytestUnitTestCase(unittest.UnitTestCase):
@@ -75,39 +78,20 @@ class PytestUnitTestCase(unittest.UnitTestCase):
         soup = BeautifulSoup(source, "html.parser")
         return soup
 
-    def _check_if_time_limit_exceeded(self):
-        from .runtime import start_time_ms, time_limit
-        if self.store.get(time_limit, None):
-            _time_limit = self.store[time_limit]
-            now_ms = int(time.time() * 1000)
-            _start_time_ms = self.store[start_time_ms]
-            time_limit_ms = int(_time_limit * 1000.0)
-
-            if now_ms > _start_time_ms + time_limit_ms:
-                display_time_limit = time_limit
-                plural = "s"
-                if float(int(time_limit)) == float(time_limit):
-                    display_time_limit = int(time_limit)
-                    if display_time_limit == 1:
-                        plural = ""
-                message = f"This test has exceeded the time limit of {display_time_limit} second{plural}!"
-                message = "\n " + message
-                raise TimeLimitExceededException(message)
-
     def sleep(self, seconds):
         from .runtime import time_limit
         limit = self.store.get(time_limit, None)
         if limit:
             time.sleep(seconds)
         elif seconds < 0.4:
-            self._check_if_time_limit_exceeded()
+            check_if_time_limit_exceeded()
             time.sleep(seconds)
-            self._check_if_time_limit_exceeded()
+            check_if_time_limit_exceeded()
         else:
             start_ms = time.time() * 1000.0
             stop_ms = start_ms + (seconds * 1000.0)
             for x in range(int(seconds * 5)):
-                self._check_if_time_limit_exceeded()
+                check_if_time_limit_exceeded()
                 now_ms = time.time() * 1000.0
                 if now_ms >= stop_ms:
                     break
@@ -153,7 +137,7 @@ class DataCharts:
         legend - If True, displays the data point legend on the chart.
         """
         chart_data.style = "pie"
-        self.__create_highchart(chart_data)
+        self._create_highchart(chart_data)
 
     def create_bar_chart(self, chart_data: "ChartData"):
         """Creates a JavaScript bar chart using "HighCharts".
@@ -174,7 +158,7 @@ class DataCharts:
         legend - If True, displays the data point legend on the chart.
         """
         chart_data.style = "bar"
-        self.__create_highchart(chart_data)
+        self._create_highchart(chart_data)
 
     def create_column_chart(self, chart_data: "ChartData"):
         """Creates a JavaScript column chart using "HighCharts".
@@ -195,7 +179,7 @@ class DataCharts:
         legend - If True, displays the data point legend on the chart.
         """
         chart_data.style = "column"
-        self.__create_highchart(chart_data)
+        self._create_highchart(chart_data)
 
     def create_line_chart(self, chart_data: "ChartData"):
         """Creates a JavaScript line chart using "HighCharts".

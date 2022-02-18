@@ -27,7 +27,7 @@ from selenium.webdriver.remote.webdriver import WebDriver
 from selenium.webdriver.remote.webelement import WebElement
 
 from sel4.conf import settings
-from sel4.core.helpers.js_utils import (
+from sel4.core.helpers__.js_utils import (
     wait_for_ready_state_complete,
     get_scroll_distance_to_element,
     wait_for_angularjs,
@@ -38,20 +38,20 @@ from sel4.core.helpers.js_utils import (
     jquery_click,
     jquery_slow_scroll_to
 )
-from sel4.core.helpers.page_actions import (
+from sel4.core.helpers__.page_actions import (
     switch_to_window,
     is_element_present,
     is_element_visible,
     is_element_enabled
 )
-from sel4.core.helpers.shadow import (
+from sel4.core.helpers__.shadow import (
     is_shadow_selector,
     wait_for_shadow_element_visible,
     wait_for_shadow_element_present,
     shadow_click
 )
-from sel4.core.helpers.shared import SeleniumBy
-from sel4.core.helpers.shared import (
+from sel4.core.helpers__.shared import SeleniumBy
+from sel4.core.helpers__.shared import (
     check_if_time_limit_exceeded,
     escape_quotes_if_needed
 )
@@ -59,13 +59,13 @@ from sel4.core.plugins._webdriver_builder import WebDriverBrowserLauncher, get_d
 from . import constants
 from .basetest import BasePytestUnitTestCase
 from .exceptions import OutOfScopeException
-from .helpers.demo_mode import (
+from .helpers__.demo_mode import (
     demo_mode_pause_if_active
 )
-from .helpers.driver import (
+from .helpers__.driver import (
     open_url
 )
-from .helpers.element_actions import (
+from .helpers__.element_actions import (
     wait_for_element_present,
     wait_for_link_text_present,
     wait_for_element_visible,

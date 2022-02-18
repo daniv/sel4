@@ -25,12 +25,12 @@ from selenium.webdriver.remote.webelement import WebElement
 
 from . import constants
 from ._webdriver_base_test import WebDriverBaseTest
-from .helpers import element_actions
-from .helpers import js_utils
-from .helpers import page_actions
-from .helpers import shared
-from .helpers.shadow import ShadowElement
-from .helpers.shared import SeleniumBy
+from .helpers__ import element_actions
+from .helpers__ import js_utils
+from .helpers__ import page_actions
+from .helpers__ import shared
+from .helpers__.shadow import ShadowElement
+from .helpers__.shared import SeleniumBy
 from ..conf import settings
 # logging.getLogger("requests").setLevel(logging.ERROR)
 # logging.getLogger("urllib3").setLevel(logging.ERROR)
@@ -302,18 +302,6 @@ class WebDriverTest(WebDriverBaseTest):
             selector: str = Field(default="", strict=True, min_length=1),
             timeout: OptionalInt = None
     ) -> None:
-        """
-        Similar to click(), but pauses for a brief moment before clicking.
-        When used in combination with setting the user-agent, it can often
-        bypass bot-detection by tricking websites into thinking that you're
-        not a bot. (Useful on websites that block web automation tools.)
-        Here's an example message from GitHub's bot-blocker:
-        ``You have triggered an abuse detection mechanism...``
-
-        :param how: the type of selector being used
-        :param selector: the locator for identifying the page element (required)
-        :param timeout: the time to wait for the element in seconds
-        """
         self.__check_scope__()
         timeout = self.get_timeout(timeout, constants.SMALL_TIMEOUT)
         if not self.demo_mode and not self.slow_mode:
@@ -326,7 +314,7 @@ class WebDriverTest(WebDriverBaseTest):
     def double_click(
             self,
             how: SeleniumBy,
-            selector: str = Field(default="", strict=True, min_length=1),
+            selector: str = Field(..., strict=True, min_length=1),
             timeout: OptionalInt = None,
     ) -> None:
         from selenium.webdriver.common.action_chains import ActionChains
@@ -349,7 +337,7 @@ class WebDriverTest(WebDriverBaseTest):
             actions = ActionChains(self.driver)
             actions.double_click(element).perform()
         except WebDriverException:
-            css_selector = self.convert_to_css_selector(selector, by=by)
+            css_selector = self.convert_to_css_selector(how, selector)
             css_selector = re.escape(css_selector)  # Add "\\" to special chars
             css_selector = shared.escape_quotes_if_needed(css_selector)
             double_click_script = (
@@ -402,7 +390,7 @@ class WebDriverTest(WebDriverBaseTest):
             self,
             text: str | None,
             how: SeleniumBy,
-            selector: str = Field(default="", strict=True, min_length=1),
+            selector: str = Field(..., strict=True, min_length=1),
             timeout: OptionalInt = None,
             retry=False
     ) -> None:
@@ -470,7 +458,14 @@ class WebDriverTest(WebDriverBaseTest):
         elif self.slow_mode:
             self._slow_mode_pause_if_active()
 
-    def add_text(self, selector, text, by=By.CSS_SELECTOR, timeout=None):
+    @validate_arguments
+    def add_text(
+            self,
+            text: str | None,
+            how: SeleniumBy,
+            selector: str = Field(..., strict=True, min_length=1),
+            timeout: OptionalInt = None
+    ):
         """The more-reliable version of driver.send_keys()
         Similar to update_text(), but won't clear the text field first."""
         self.__check_scope__()
@@ -478,12 +473,10 @@ class WebDriverTest(WebDriverBaseTest):
         if self._is_shadow_selector(selector):
             self._shadow.shadow_type(selector, text, timeout, clear_first=False)
             return
-        element = self.wait_for_element_visible(
-            selector, by=by, timeout=timeout
-        )
-        self.__demo_mode_highlight_if_active(selector, by)
+        element = self.wait_for_element_visible(how, selector, timeout)
+        self.__demo_mode_highlight_if_active(how, selector)
         if not self.demo_mode and not self.slow_mode:
-            self.__scroll_to_element(element, selector, by)
+            self.__scroll_to_element(element, how, selector)
         pre_action_url = self.driver.current_url
         if type(text) is int or type(text) is float:
             text = str(text)
@@ -498,9 +491,7 @@ class WebDriverTest(WebDriverBaseTest):
         except (StaleElementReferenceException, ElementNotInteractableException):
             self.wait_for_ready_state_complete()
             time.sleep(0.16)
-            element = self.wait_for_element_visible(
-                selector, by=by, timeout=timeout
-            )
+            element = self.wait_for_element_visible(how, selector, timeout)
             if not text.endswith("\n"):
                 element.send_keys(text)
             else:
@@ -516,57 +507,23 @@ class WebDriverTest(WebDriverBaseTest):
         elif self.slow_mode:
             self._slow_mode_pause_if_active()
 
-    def type(
-        self, selector, text, by=By.CSS_SELECTOR, timeout=None, retry=False
-    ):
-        """Same as self.update_text()
-        This method updates an element's text field with new text.
-        Has multiple parts:
-        * Waits for the element to be visible.
-        * Waits for the element to be interactive.
-        * Clears the text field.
-        * Types in the new text.
-        * Hits Enter/Submit (if the text ends in "\n").
-        @Params
-        selector - the selector of the text field
-        text - the new text to type into the text field
-        by - the type of selector to search by (Default: CSS Selector)
-        timeout - how long to wait for the selector to be visible
-        retry - if True, use JS if the Selenium text update fails
-        DO NOT confuse self.type() with Python type()! They are different!
-        """
-        self.__check_scope__()
-        timeout = self.get_timeout(timeout, constants.LARGE_TIMEOUT)
-        self.update_text(text, how, selector, timeout, retry=retry)
-
-    def submit(self, selector, by=By.CSS_SELECTOR):
+    def submit(self, how: SeleniumBy, selector: str = Field(..., strict=True, min_length=1)):
         """ Alternative to self.driver.find_element_by_*(SELECTOR).submit() """
         self.__check_scope__()
-        element = self.wait_for_element_visible(
-            selector, by=by, timeout=settings.SMALL_TIMEOUT
-        )
+        element = self.wait_for_element_visible(how, selector, timeout=constants.SMALL_TIMEOUT)
         element.submit()
         self._demo_mode_pause_if_active()
 
-    def clear(self, selector, by=By.CSS_SELECTOR, timeout=None):
-        """This method clears an element's text field.
-        A clear() is already included with most methods that type text,
-        such as self.type(), self.update_text(), etc.
-        Does not use Demo Mode highlights, mainly because we expect
-        that some users will be calling an unnecessary clear() before
-        calling a method that already includes clear() as part of it.
-        In case websites trigger an autofill after clearing a field,
-        add backspaces to make sure autofill doesn't undo the clear.
-        """
+    def clear(
+            self, how: SeleniumBy, selector: str = Field(..., strict=True, min_length=1), timeout: OptionalInt = None
+    ):
         self.__check_scope__()
         timeout = self.get_timeout(timeout, constants.LARGE_TIMEOUT)
         if self._is_shadow_selector(selector):
             self._shadow.shadow_clear(selector, timeout)
             return
-        element = self.wait_for_element_visible(
-            selector, by=by, timeout=timeout
-        )
-        self.scroll_to(selector, by=by, timeout=timeout)
+        element = self.wait_for_element_visible(how, selector, timeout)
+        self.scroll_to(how, selector, timeout=timeout)
         try:
             element.clear()
             backspaces = Keys.BACK_SPACE * 42  # Autofill Defense
@@ -574,9 +531,7 @@ class WebDriverTest(WebDriverBaseTest):
         except (StaleElementReferenceException, ElementNotInteractableException):
             self.wait_for_ready_state_complete()
             time.sleep(0.16)
-            element = self.wait_for_element_visible(
-                selector, by=by, timeout=timeout
-            )
+            element = self.wait_for_element_visible(how, selector, timeout)
             element.clear()
             try:
                 backspaces = Keys.BACK_SPACE * 42  # Autofill Defense
@@ -586,24 +541,19 @@ class WebDriverTest(WebDriverBaseTest):
         except Exception:
             element.clear()
 
-    def focus(self, selector, by=By.CSS_SELECTOR, timeout=None):
-        """Make the current page focus on an interactable element.
-        If the element is not interactable, only scrolls to it.
-        The "tab" key is another way of setting the page focus."""
+    def focus(
+            self, how: SeleniumBy, selector: str = Field(..., strict=True, min_length=1), timeout: OptionalInt = None
+    ):
         self.__check_scope__()
         timeout = self.get_timeout(timeout, constants.LARGE_TIMEOUT)
-        element = self.wait_for_element_visible(
-            selector, by=by, timeout=timeout
-        )
-        self.scroll_to(selector, by=by, timeout=timeout)
+        element = self.wait_for_element_visible(how, selector, timeout)
+        self.scroll_to(how, selector, timeout=timeout)
         try:
             element.send_keys(Keys.NULL)
         except (StaleElementReferenceException, ElementNotInteractableException):
             self.wait_for_ready_state_complete()
             time.sleep(0.12)
-            element = self.wait_for_element_visible(
-                selector, by=by, timeout=timeout
-            )
+            element = self.wait_for_element_visible(how, selector, timeout)
             try:
                 element.send_keys(Keys.NULL)
             except ElementNotInteractableException:
@@ -672,10 +622,6 @@ class WebDriverTest(WebDriverBaseTest):
         self._demo_mode_pause_if_active()
 
     def open_start_page(self):
-        """Navigates the current browser window to the start_page.
-        You can set the start_page on the command-line in three ways:
-        '--start_page=URL', '--start-page=URL', or '--url=URL'.
-        If the start_page is not set, then "data:," will be used."""
         self.__check_scope__()
         start_page = self.start_page
         if type(start_page) is str:
@@ -701,22 +647,22 @@ class WebDriverTest(WebDriverBaseTest):
         if self.driver.current_url != url:
             self.open(url)
 
-    def is_element_present(self, how: SeleniumBy, selector: str = Field(default="", strict=True, min_length=1)):
+    def is_element_present(self, how: SeleniumBy, selector: str = Field(..., strict=True, min_length=1)):
         self.wait_for_ready_state_complete()
-        if shadow.is_shadow_selector(selector):
-            return shadow.is_shadow_element_present(selector)
+        if self._is_shadow_selector(selector):
+            return self._shadow.is_shadow_element_present(selector)
         return element_actions.is_element_present(self.driver, how, selector)
 
-    def is_element_visible(self, how: SeleniumBy, selector: str = Field(default="", strict=True, min_length=1)):
+    def is_element_visible(self, how: SeleniumBy, selector: str = Field(..., strict=True, min_length=1)):
         self.wait_for_ready_state_complete()
-        if shadow.is_shadow_selector(selector):
-            return shadow.is_shadow_element_visible(selector)
+        if self._is_shadow_selector(selector):
+            return self._shadow.is_shadow_element_visible(selector)
         return element_actions.is_element_visible(self.driver, selector, by)
 
-    def is_element_enabled(self, how: SeleniumBy, selector: str = Field(default="", strict=True, min_length=1)):
+    def is_element_enabled(self, how: SeleniumBy, selector: str = Field(..., strict=True, min_length=1)):
         self.wait_for_ready_state_complete()
-        if shadow.is_shadow_selector(selector):
-            return shadow.is_shadow_element_enabled(selector)
+        if self._is_shadow_selector(selector):
+            return self._shadow.is_shadow_element_enabled(selector)
         return element_actions.is_element_enabled(self.driver, selector, by)
 
     def is_text_visible(
@@ -724,8 +670,8 @@ class WebDriverTest(WebDriverBaseTest):
     ):
         self.wait_for_ready_state_complete()
         time.sleep(0.01)
-        if shadow.is_shadow_selector(selector):
-            return shadow.is_shadow_text_visible(text, selector)
+        if self._is_shadow_selector(selector):
+            return self._shadow.is_shadow_text_visible(text, selector)
         return element_actions.is_text_visible(self.driver, text, selector, by)
 
     @validate_arguments
@@ -740,8 +686,8 @@ class WebDriverTest(WebDriverBaseTest):
         If the value is not specified, the attribute only needs to exist."""
         self.wait_for_ready_state_complete()
         time.sleep(0.01)
-        if shadow.is_shadow_selector(selector):
-            return shadow.is_shadow_attribute_present(selector, attribute_name, attribute_value)
+        if self._is_shadow_selector(selector):
+            return self._shadow.is_shadow_attribute_present(selector, attribute_name, attribute_value)
         return element_actions.is_attribute_present(self.driver, attribute_name, attribute_value, how, selector)
 
     @validate_arguments
@@ -784,10 +730,7 @@ class WebDriverTest(WebDriverBaseTest):
                 return True
         return False
 
-    def get_link_attribute(self, link_text, attribute, hard_fail=True):
-        """Finds a link by link text and then returns the attribute's value.
-        If the link text or attribute cannot be found, an exception will
-        get raised if hard_fail is True (otherwise None is returned)."""
+    def get_link_attribute(self, link_text: str, attribute: str, hard_fail=True):
         self.wait_for_ready_state_complete()
         soup = self.get_beautiful_soup()
         html_links = soup.find_all("a")
@@ -806,19 +749,11 @@ class WebDriverTest(WebDriverBaseTest):
             return None
 
     def get_link_text_attribute(self, link_text, attribute, hard_fail=True):
-        """Same as self.get_link_attribute()
-        Finds a link by link text and then returns the attribute's value.
-        If the link text or attribute cannot be found, an exception will
-        get raised if hard_fail is True (otherwise None is returned)."""
         return self.get_link_attribute(link_text, attribute, hard_fail)
 
     def get_partial_link_text_attribute(
         self, link_text, attribute, hard_fail=True
     ):
-        """Finds a link by partial link text and then returns the attribute's
-        value. If the partial link text or attribute cannot be found, an
-        exception will get raised if hard_fail is True (otherwise None
-        is returned)."""
         self.wait_for_ready_state_complete()
         soup = self.get_beautiful_soup()
         html_links = soup.find_all("a")
@@ -841,7 +776,7 @@ class WebDriverTest(WebDriverBaseTest):
         else:
             return None
 
-    def click_link_text(self, link_text, timeout=None):
+    def click_link_text(self, link_text: str, timeout: OptionalInt = None):
         """ This method clicks link text on a page """
         # If using phantomjs, might need to extract and open the link directly
         self.__check_scope__()
@@ -961,7 +896,7 @@ class WebDriverTest(WebDriverBaseTest):
         elif self.slow_mode:
             self._slow_mode_pause_if_active()
 
-    def click_partial_link_text(self, partial_link_text, timeout=None):
+    def click_partial_link_text(self, partial_link_text: str, timeout: OptionalInt = None):
         """ This method clicks the partial link text on a page. """
         # If using phantomjs, might need to extract and open the link directly
         self.__check_scope__()
@@ -1093,9 +1028,8 @@ class WebDriverTest(WebDriverBaseTest):
     def get_text(self, selector, by=By.CSS_SELECTOR, timeout=None):
         self.__check_scope__()
         timeout = self.get_timeout(timeout, constants.SMALL_TIMEOUT)
-        selector, by = self.__recalculate_selector(selector, by)
-        if self.__is_shadow_selector(selector):
-            return self.__get_shadow_text(selector, timeout)
+        if self._is_shadow_selector(selector):
+            return self._shadow.get_shadow_text(selector, timeout)
         self.wait_for_ready_state_complete()
         time.sleep(0.01)
         element = element_actions.wait_for_element_visible(self.driver, how, selector, timeout)
@@ -1222,8 +1156,6 @@ class WebDriverTest(WebDriverBaseTest):
             timeout: OptionalInt = None,
             attribute_name: str = Field(..., min_length=1)
     ):
-        """This method uses JavaScript to remove an attribute.
-        Only the first matching selector from querySelector() is used."""
         self.__check_scope__()
         timeout = self.get_timeout(timeout, constants.SMALL_TIMEOUT)
         if self.is_element_visible(how, selector):
@@ -2729,78 +2661,78 @@ class WebDriverTest(WebDriverBaseTest):
         self.wait_for_ready_state_complete()
         return page_actions.save_page_source(self.driver, name, folder)
 
-    def save_cookies(self, name="cookies.txt"):
-        """ Saves the page cookies to the "saved_cookies" folder. """
-        self.wait_for_ready_state_complete()
-        cookies = self.driver.get_cookies()
-        json_cookies = json.dumps(cookies)
-        if name.endswith("/"):
-            raise Exception("Invalid filename for Cookies!")
-        if "/" in name:
-            name = name.split("/")[-1]
-        if len(name) < 1:
-            raise Exception("Filename for Cookies is too short!")
-        if not name.endswith(".txt"):
-            name = name + ".txt"
-        folder = constants.SavedCookies.STORAGE_FOLDER
-        abs_path = os.path.abspath(".")
-        file_path = abs_path + "/%s" % folder
-        if not os.path.exists(file_path):
-            os.makedirs(file_path)
-        cookies_file_path = "%s/%s" % (file_path, name)
-        cookies_file = codecs.open(cookies_file_path, "w+", encoding="utf-8")
-        cookies_file.writelines(json_cookies)
-        cookies_file.close()
-
-    def load_cookies(self, name="cookies.txt"):
-        """ Loads the page cookies from the "saved_cookies" folder. """
-        self.wait_for_ready_state_complete()
-        if name.endswith("/"):
-            raise Exception("Invalid filename for Cookies!")
-        if "/" in name:
-            name = name.split("/")[-1]
-        if len(name) < 1:
-            raise Exception("Filename for Cookies is too short!")
-        if not name.endswith(".txt"):
-            name = name + ".txt"
-        folder = constants.SavedCookies.STORAGE_FOLDER
-        abs_path = os.path.abspath(".")
-        file_path = abs_path + "/%s" % folder
-        cookies_file_path = "%s/%s" % (file_path, name)
-        json_cookies = None
-        with open(cookies_file_path, "r") as f:
-            json_cookies = f.read().strip()
-        cookies = json.loads(json_cookies)
-        for cookie in cookies:
-            if "expiry" in cookie:
-                del cookie["expiry"]
-            self.driver.add_cookie(cookie)
-
-    def delete_all_cookies(self):
-        """Deletes all cookies in the web browser.
-        Does NOT delete the saved cookies file."""
-        self.wait_for_ready_state_complete()
-        self.driver.delete_all_cookies()
-
-    def delete_saved_cookies(self, name: str = "cookies.txt"):
-        """Deletes the cookies file from the "saved_cookies" folder.
-        Does NOT delete the cookies from the web browser."""
-        self.wait_for_ready_state_complete()
-        if name.endswith("/"):
-            raise Exception("Invalid filename for Cookies!")
-        if "/" in name:
-            name = name.split("/")[-1]
-        if len(name) < 1:
-            raise Exception("Filename for Cookies is too short!")
-        if not name.endswith(".txt"):
-            name = name + ".txt"
-        folder = constants.SavedCookies.STORAGE_FOLDER
-        abs_path = os.path.abspath(".")
-        file_path = abs_path + "/%s" % folder
-        cookies_file_path = "%s/%s" % (file_path, name)
-        if os.path.exists(cookies_file_path):
-            if cookies_file_path.endswith(".txt"):
-                os.remove(cookies_file_path)
+    # def save_cookies(self, name="cookies.txt"):
+    #     """ Saves the page cookies to the "saved_cookies" folder. """
+    #     self.wait_for_ready_state_complete()
+    #     cookies = self.driver.get_cookies()
+    #     json_cookies = json.dumps(cookies)
+    #     if name.endswith("/"):
+    #         raise Exception("Invalid filename for Cookies!")
+    #     if "/" in name:
+    #         name = name.split("/")[-1]
+    #     if len(name) < 1:
+    #         raise Exception("Filename for Cookies is too short!")
+    #     if not name.endswith(".txt"):
+    #         name = name + ".txt"
+    #     folder = constants.SavedCookies.STORAGE_FOLDER
+    #     abs_path = os.path.abspath(".")
+    #     file_path = abs_path + "/%s" % folder
+    #     if not os.path.exists(file_path):
+    #         os.makedirs(file_path)
+    #     cookies_file_path = "%s/%s" % (file_path, name)
+    #     cookies_file = codecs.open(cookies_file_path, "w+", encoding="utf-8")
+    #     cookies_file.writelines(json_cookies)
+    #     cookies_file.close()
+    #
+    # def load_cookies(self, name="cookies.txt"):
+    #     """ Loads the page cookies from the "saved_cookies" folder. """
+    #     self.wait_for_ready_state_complete()
+    #     if name.endswith("/"):
+    #         raise Exception("Invalid filename for Cookies!")
+    #     if "/" in name:
+    #         name = name.split("/")[-1]
+    #     if len(name) < 1:
+    #         raise Exception("Filename for Cookies is too short!")
+    #     if not name.endswith(".txt"):
+    #         name = name + ".txt"
+    #     folder = constants.SavedCookies.STORAGE_FOLDER
+    #     abs_path = os.path.abspath(".")
+    #     file_path = abs_path + "/%s" % folder
+    #     cookies_file_path = "%s/%s" % (file_path, name)
+    #     json_cookies = None
+    #     with open(cookies_file_path, "r") as f:
+    #         json_cookies = f.read().strip()
+    #     cookies = json.loads(json_cookies)
+    #     for cookie in cookies:
+    #         if "expiry" in cookie:
+    #             del cookie["expiry"]
+    #         self.driver.add_cookie(cookie)
+    #
+    # def delete_all_cookies(self):
+    #     """Deletes all cookies in the web browser.
+    #     Does NOT delete the saved cookies file."""
+    #     self.wait_for_ready_state_complete()
+    #     self.driver.delete_all_cookies()
+    #
+    # def delete_saved_cookies(self, name: str = "cookies.txt"):
+    #     """Deletes the cookies file from the "saved_cookies" folder.
+    #     Does NOT delete the cookies from the web browser."""
+    #     self.wait_for_ready_state_complete()
+    #     if name.endswith("/"):
+    #         raise Exception("Invalid filename for Cookies!")
+    #     if "/" in name:
+    #         name = name.split("/")[-1]
+    #     if len(name) < 1:
+    #         raise Exception("Filename for Cookies is too short!")
+    #     if not name.endswith(".txt"):
+    #         name = name + ".txt"
+    #     folder = constants.SavedCookies.STORAGE_FOLDER
+    #     abs_path = os.path.abspath(".")
+    #     file_path = abs_path + "/%s" % folder
+    #     cookies_file_path = "%s/%s" % (file_path, name)
+    #     if os.path.exists(cookies_file_path):
+    #         if cookies_file_path.endswith(".txt"):
+    #             os.remove(cookies_file_path)
 
     def install_addon(self, xpi_file: FilePath):
         """Installs a Firefox add-on instantly at run-time.
@@ -2966,12 +2898,12 @@ class WebDriverTest(WebDriverBaseTest):
         orig_selector = selector
         if ":contains" not in selector and ":first" not in selector:
             selector = re.escape(selector)
-            selector = self.__escape_quotes_if_needed(selector)
+            selector = shared.escape_quotes_if_needed(selector)
             self.__highlight_with_js(selector, loops, o_bs)
         else:
             selector = self.__make_css_match_first_element_only(selector)
             selector = re.escape(selector)
-            selector = self.__escape_quotes_if_needed(selector)
+            selector = shared.escape_quotes_if_needed(selector)
             try:
                 self.__highlight_with_jquery(selector, loops, o_bs)
             except Exception:
@@ -3169,13 +3101,13 @@ class WebDriverTest(WebDriverBaseTest):
                 "allows this with :contains(), assuming jQuery isn't blocked. "
                 "For now, self.js_click() will use a regular WebDriver click."
             )
-            logging.debug(message)
+            logger.debug(message)
             self.click(selector, by=by)
             return
         element = self.wait_for_element_present(
             selector, by=by, timeout=settings.SMALL_TIMEOUT
         )
-        if self.is_element_visible(selector, by=by):
+        if self.is_element_visible(how, selector):
             self.__demo_mode_highlight_if_active(selector, by)
             if scroll and not self.demo_mode and not self.slow_mode:
                 success = js_utils.scroll_to_element(self.driver, element)
@@ -3187,7 +3119,7 @@ class WebDriverTest(WebDriverBaseTest):
                     )
         css_selector = self.convert_to_css_selector(selector, by=by)
         css_selector = re.escape(css_selector)  # Add "\\" to special chars
-        css_selector = self.__escape_quotes_if_needed(css_selector)
+        css_selector = shared.escape_quotes_if_needed(css_selector)
         action = None
         pre_action_url = self.driver.current_url
         pre_window_count = len(self.driver.window_handles)
@@ -3226,7 +3158,6 @@ class WebDriverTest(WebDriverBaseTest):
         """Clicks an element using jQuery. (Different from using pure JS.)
         Can be used to click hidden / invisible elements."""
         self.__check_scope__()
-        selector, by = self.__recalculate_selector(selector, by, xp_ok=False)
         self.wait_for_element_present(
             selector, by=by, timeout=settings.SMALL_TIMEOUT
         )
@@ -3241,7 +3172,6 @@ class WebDriverTest(WebDriverBaseTest):
     def jquery_click_all(self, selector, by=By.CSS_SELECTOR):
         """ Clicks all matching elements using jQuery. """
         self.__check_scope__()
-        selector, by = self.__recalculate_selector(selector, by, xp_ok=False)
         self.wait_for_element_present(
             selector, by=by, timeout=settings.SMALL_TIMEOUT
         )
@@ -3255,7 +3185,6 @@ class WebDriverTest(WebDriverBaseTest):
     def hide_element(self, selector, by=By.CSS_SELECTOR):
         """ Hide the first element on the page that matches the selector. """
         self.__check_scope__()
-        selector, by = self.__recalculate_selector(selector, by)
         selector = self.convert_to_css_selector(selector, by=by)
         selector = self.__make_css_match_first_element_only(selector)
         hide_script = """jQuery('%s').hide();""" % selector
@@ -3264,7 +3193,6 @@ class WebDriverTest(WebDriverBaseTest):
     def hide_elements(self, selector, by=By.CSS_SELECTOR):
         """ Hide all elements on the page that match the selector. """
         self.__check_scope__()
-        selector, by = self.__recalculate_selector(selector, by)
         selector = self.convert_to_css_selector(selector, by=by)
         hide_script = """jQuery('%s').hide();""" % selector
         self.safe_execute_script(hide_script)
@@ -3272,7 +3200,6 @@ class WebDriverTest(WebDriverBaseTest):
     def show_element(self, selector, by=By.CSS_SELECTOR):
         """ Show the first element on the page that matches the selector. """
         self.__check_scope__()
-        selector, by = self.__recalculate_selector(selector, by)
         selector = self.convert_to_css_selector(selector, by=by)
         selector = self.__make_css_match_first_element_only(selector)
         show_script = """jQuery('%s').show(0);""" % selector
@@ -3281,7 +3208,6 @@ class WebDriverTest(WebDriverBaseTest):
     def show_elements(self, selector, by=By.CSS_SELECTOR):
         """ Show all elements on the page that match the selector. """
         self.__check_scope__()
-        selector, by = self.__recalculate_selector(selector, by)
         selector = self.convert_to_css_selector(selector, by=by)
         show_script = """jQuery('%s').show(0);""" % selector
         self.safe_execute_script(show_script)
@@ -3289,7 +3215,6 @@ class WebDriverTest(WebDriverBaseTest):
     def remove_element(self, selector, by=By.CSS_SELECTOR):
         """ Remove the first element on the page that matches the selector. """
         self.__check_scope__()
-        selector, by = self.__recalculate_selector(selector, by)
         selector = self.convert_to_css_selector(selector, by=by)
         selector = self.__make_css_match_first_element_only(selector)
         remove_script = """jQuery('%s').remove();""" % selector
@@ -3425,28 +3350,6 @@ class WebDriverTest(WebDriverBaseTest):
         override=False,
         caching=True,
     ):
-        """Gets text from a PDF file.
-        PDF can be either a URL or a file path on the local file system.
-        @Params
-        pdf - The URL or file path of the PDF file.
-        page - The page number (or a list of page numbers) of the PDF.
-                If a page number is provided, looks only at that page.
-                    (1 is the first page, 2 is the second page, etc.)
-                If no page number is provided, returns all PDF text.
-        maxpages - Instead of providing a page number, you can provide
-                   the number of pages to use from the beginning.
-        password - If the PDF is password-protected, enter it here.
-        codec - The compression format for character encoding.
-                (The default codec used by this method is 'utf-8'.)
-        wrap - Replaces ' \n' with ' ' so that individual sentences
-               from a PDF don't get broken up into separate lines when
-               getting converted into text format.
-        nav - If PDF is a URL, navigates to the URL in the browser first.
-              (Not needed because the PDF will be downloaded anyway.)
-        override - If the PDF file to be downloaded already exists in the
-                   downloaded_files/ folder, that PDF will be used
-                   instead of downloading it again.
-        caching - If resources should be cached via pdfminer."""
         import warnings
 
         with warnings.catch_warnings():
@@ -4385,13 +4288,23 @@ class WebDriverTest(WebDriverBaseTest):
         """ Same as self.wait_for_element() """
         self.__check_scope__()
         timeout = self.get_timeout(timeout, constants.SMALL_TIMEOUT)
-        if self.__is_shadow_selector(selector):
-            return self.__wait_for_shadow_element_visible(
+        if self._is_shadow_selector(selector):
+            return self._shadow.wait_for_shadow_element_visible(
                 selector, timeout
             )
-        return page_actions.wait_for_element_visible(
-            self.driver, selector, by, timeout
-        )
+        return element_actions.wait_for_element_visible(self.driver, selector, by, timeout)
+
+    def wait_for_element_interactable(
+        self, selector, by=By.CSS_SELECTOR, timeout=None
+    ):
+        """ Same as self.wait_for_element() """
+        self.__check_scope__()
+        timeout = self.get_timeout(timeout, constants.SMALL_TIMEOUT)
+        if self._is_shadow_selector(selector):
+            return self._shadow.wait_for_shadow_element_visible(
+                selector, timeout
+            )
+        return element_actions.wait_for_element_interactable(self.driver, selector, by, timeout)
 
     def wait_for_element_not_present(
         self, selector, by=By.CSS_SELECTOR, timeout=None
@@ -4836,330 +4749,330 @@ class WebDriverTest(WebDriverBaseTest):
     def activate_jquery_confirm(self):
         """ See https://craftpip.github.io/jquery-confirm/ for usage. """
         self.__check_scope__()
-        self.__check_browser()
+        self.__check_browser__()
         js_utils.activate_jquery_confirm(self.driver)
         self.wait_for_ready_state_complete()
 
-    def set_jqc_theme(self, theme, color=None, width=None):
-        """ Sets the default jquery-confirm theme and width (optional).
-        Available themes: "bootstrap", "modern", "material", "supervan",
-                          "light", "dark", and "seamless".
-        Available colors: (This sets the BORDER color, NOT the button color.)
-            "blue", "default", "green", "red", "purple", "orange", "dark".
-        Width can be set using percent or pixels. Eg: "36.0%", "450px".
-        """
-        if not self.__changed_jqc_theme:
-            self.__jqc_default_theme = constants.JqueryConfirm.DEFAULT_THEME
-            self.__jqc_default_color = constants.JqueryConfirm.DEFAULT_COLOR
-            self.__jqc_default_width = constants.JqueryConfirm.DEFAULT_WIDTH
-        valid_themes = [
-            "bootstrap",
-            "modern",
-            "material",
-            "supervan",
-            "light",
-            "dark",
-            "seamless",
-        ]
-        if theme.lower() not in valid_themes:
-            raise Exception(
-                "%s is not a valid jquery-confirm theme! "
-                "Select from %s" % (theme.lower(), valid_themes)
-            )
-        constants.JqueryConfirm.DEFAULT_THEME = theme.lower()
-        if color:
-            valid_colors = [
-                "blue",
-                "default",
-                "green",
-                "red",
-                "purple",
-                "orange",
-                "dark",
-            ]
-            if color.lower() not in valid_colors:
-                raise Exception(
-                    "%s is not a valid jquery-confirm border color! "
-                    "Select from %s" % (color.lower(), valid_colors)
-                )
-            constants.JqueryConfirm.DEFAULT_COLOR = color.lower()
-        if width:
-            if type(width) is int or type(width) is float:
-                # Convert to a string if a number is given
-                width = str(width)
-            if width.isnumeric():
-                if int(width) <= 0:
-                    raise Exception("Width must be set to a positive number!")
-                elif int(width) <= 100:
-                    width = str(width) + "%"
-                else:
-                    width = str(width) + "px"  # Use pixels if width is > 100
-            if not width.endswith("%") and not width.endswith("px"):
-                raise Exception(
-                    "jqc width must end with %% for percent or px for pixels!"
-                )
-            value = None
-            if width.endswith("%"):
-                value = width[:-1]
-            if width.endswith("px"):
-                value = width[:-2]
-            try:
-                value = float(value)
-            except Exception:
-                raise Exception("%s is not a numeric value!" % value)
-            if value <= 0:
-                raise Exception("%s is not a positive number!" % value)
-            constants.JqueryConfirm.DEFAULT_WIDTH = width
-
-    def reset_jqc_theme(self):
-        """ Resets the jqc theme settings to factory defaults. """
-        if self.__changed_jqc_theme:
-            constants.JqueryConfirm.DEFAULT_THEME = self.__jqc_default_theme
-            constants.JqueryConfirm.DEFAULT_COLOR = self.__jqc_default_color
-            constants.JqueryConfirm.DEFAULT_WIDTH = self.__jqc_default_width
-            self.__changed_jqc_theme = False
-
-    def get_jqc_button_input(self, message, buttons, options=None):
-        """
-        Pop up a jquery-confirm box and return the text of the button clicked.
-        If running in headless mode, the last button text is returned.
-        @Params
-        message: The message to display in the jquery-confirm dialog.
-        buttons: A list of tuples for text and color.
-            Example: [("Yes!", "green"), ("No!", "red")]
-            Available colors: blue, green, red, orange, purple, default, dark.
-            A simple text string also works: "My Button". (Uses default color.)
-        options: A list of tuples for options to set.
-            Example: [("theme", "bootstrap"), ("width", "450px")]
-            Available theme options: bootstrap, modern, material, supervan,
-                                     light, dark, and seamless.
-            Available colors: (For the BORDER color, NOT the button color.)
-                "blue", "default", "green", "red", "purple", "orange", "dark".
-            Example option for changing the border color: ("color", "default")
-            Width can be set using percent or pixels. Eg: "36.0%", "450px".
-        """
-        from seleniumbase.core import jqc_helper
-
-        if message and type(message) is not str:
-            raise Exception('Expecting a string for arg: "message"!')
-        if not type(buttons) is list and not type(buttons) is tuple:
-            raise Exception('Expecting a list or tuple for arg: "button"!')
-        if len(buttons) < 1:
-            raise Exception('List "buttons" requires at least one button!')
-        new_buttons = []
-        for button in buttons:
-            if (
-                (type(button) is list or type(button) is tuple)
-                and (len(button) == 1)
-            ):
-                new_buttons.append(button[0])
-            elif (
-                (type(button) is list or type(button) is tuple)
-                and (len(button) > 1)
-            ):
-                new_buttons.append((button[0], str(button[1]).lower()))
-            else:
-                new_buttons.append((str(button), ""))
-        buttons = new_buttons
-        if options:
-            for option in options:
-                if not type(option) is list and not type(option) is tuple:
-                    raise Exception('"options" should be a list of tuples!')
-        if self.headless or self.xvfb:
-            return buttons[-1][0]
-        jqc_helper.jquery_confirm_button_dialog(
-            self.driver, message, buttons, options
-        )
-        self.sleep(0.02)
-        jf = "document.querySelector('.jconfirm-box').focus();"
-        try:
-            self.execute_script(jf)
-        except Exception:
-            pass
-        waiting_for_response = True
-        while waiting_for_response:
-            self.sleep(0.05)
-            jqc_open = self.execute_script(
-                "return jconfirm.instances.length"
-            )
-            if str(jqc_open) == "0":
-                break
-        self.sleep(0.1)
-        status = None
-        try:
-            status = self.execute_script("return $jqc_status")
-        except Exception:
-            status = self.execute_script(
-                "return jconfirm.lastButtonText"
-            )
-        return status
-
-    def get_jqc_text_input(self, message, button=None, options=None):
-        """
-        Pop up a jquery-confirm box and return the text submitted by the input.
-        If running in headless mode, the text returned is "" by default.
-        @Params
-        message: The message to display in the jquery-confirm dialog.
-        button: A 2-item list or tuple for text and color. Or just the text.
-            Example: ["Submit", "blue"] -> (default button if not specified)
-            Available colors: blue, green, red, orange, purple, default, dark.
-            A simple text string also works: "My Button". (Uses default color.)
-        options: A list of tuples for options to set.
-            Example: [("theme", "bootstrap"), ("width", "450px")]
-            Available theme options: bootstrap, modern, material, supervan,
-                                     light, dark, and seamless.
-            Available colors: (For the BORDER color, NOT the button color.)
-                "blue", "default", "green", "red", "purple", "orange", "dark".
-            Example option for changing the border color: ("color", "default")
-            Width can be set using percent or pixels. Eg: "36.0%", "450px".
-        """
-        from seleniumbase.core import jqc_helper
-
-        if message and type(message) is not str:
-            raise Exception('Expecting a string for arg: "message"!')
-        if button:
-            if (
-                (type(button) is list or type(button) is tuple)
-                and (len(button) == 1)
-            ):
-                button = (str(button[0]), "")
-            elif (
-                (type(button) is list or type(button) is tuple)
-                and (len(button) > 1)
-            ):
-                valid_colors = [
-                    "blue",
-                    "default",
-                    "green",
-                    "red",
-                    "purple",
-                    "orange",
-                    "dark",
-                ]
-                detected_color = str(button[1]).lower()
-                if str(button[1]).lower() not in valid_colors:
-                    raise Exception(
-                        "%s is an invalid jquery-confirm button color!\n"
-                        "Select from %s" % (detected_color, valid_colors)
-                    )
-                button = (str(button[0]), str(button[1]).lower())
-            else:
-                button = (str(button), "")
-        else:
-            button = ("Submit", "blue")
-
-        if options:
-            for option in options:
-                if not type(option) is list and not type(option) is tuple:
-                    raise Exception('"options" should be a list of tuples!')
-        if self.headless or self.xvfb:
-            return ""
-        jqc_helper.jquery_confirm_text_dialog(
-            self.driver, message, button, options
-        )
-        self.sleep(0.02)
-        jf = "document.querySelector('.jconfirm-box input.jqc_input').focus();"
-        try:
-            self.execute_script(jf)
-        except Exception:
-            pass
-        waiting_for_response = True
-        while waiting_for_response:
-            self.sleep(0.05)
-            jqc_open = self.execute_script(
-                "return jconfirm.instances.length"
-            )
-            if str(jqc_open) == "0":
-                break
-        self.sleep(0.1)
-        status = None
-        try:
-            status = self.execute_script("return $jqc_input")
-        except Exception:
-            status = self.execute_script(
-                "return jconfirm.lastInputText"
-            )
-        return status
-
-    def get_jqc_form_inputs(self, message, buttons, options=None):
-        """
-        Pop up a jquery-confirm box and return the input/button texts as tuple.
-        If running in headless mode, returns the ("", buttons[-1][0]) tuple.
-        @Params
-        message: The message to display in the jquery-confirm dialog.
-        buttons: A list of tuples for text and color.
-            Example: [("Yes!", "green"), ("No!", "red")]
-            Available colors: blue, green, red, orange, purple, default, dark.
-            A simple text string also works: "My Button". (Uses default color.)
-        options: A list of tuples for options to set.
-            Example: [("theme", "bootstrap"), ("width", "450px")]
-            Available theme options: bootstrap, modern, material, supervan,
-                                     light, dark, and seamless.
-            Available colors: (For the BORDER color, NOT the button color.)
-                "blue", "default", "green", "red", "purple", "orange", "dark".
-            Example option for changing the border color: ("color", "default")
-            Width can be set using percent or pixels. Eg: "36.0%", "450px".
-        """
-        from seleniumbase.core import jqc_helper
-
-        if message and type(message) is not str:
-            raise Exception('Expecting a string for arg: "message"!')
-        if not type(buttons) is list and not type(buttons) is tuple:
-            raise Exception('Expecting a list or tuple for arg: "button"!')
-        if len(buttons) < 1:
-            raise Exception('List "buttons" requires at least one button!')
-        new_buttons = []
-        for button in buttons:
-            if (
-                (type(button) is list or type(button) is tuple)
-                and (len(button) == 1)
-            ):
-                new_buttons.append(button[0])
-            elif (
-                (type(button) is list or type(button) is tuple)
-                and (len(button) > 1)
-            ):
-                new_buttons.append((button[0], str(button[1]).lower()))
-            else:
-                new_buttons.append((str(button), ""))
-        buttons = new_buttons
-        if options:
-            for option in options:
-                if not type(option) is list and not type(option) is tuple:
-                    raise Exception('"options" should be a list of tuples!')
-        if self.headless or self.xvfb:
-            return ("", buttons[-1][0])
-        jqc_helper.jquery_confirm_full_dialog(
-            self.driver, message, buttons, options
-        )
-        self.sleep(0.02)
-        jf = "document.querySelector('.jconfirm-box input.jqc_input').focus();"
-        try:
-            self.execute_script(jf)
-        except Exception:
-            pass
-        waiting_for_response = True
-        while waiting_for_response:
-            self.sleep(0.05)
-            jqc_open = self.execute_script(
-                "return jconfirm.instances.length"
-            )
-            if str(jqc_open) == "0":
-                break
-        self.sleep(0.1)
-        text_status = None
-        button_status = None
-        try:
-            text_status = self.execute_script("return $jqc_input")
-            button_status = self.execute_script("return $jqc_status")
-        except Exception:
-            text_status = self.execute_script(
-                "return jconfirm.lastInputText"
-            )
-            button_status = self.execute_script(
-                "return jconfirm.lastButtonText"
-            )
-        return (text_status, button_status)
+    # def set_jqc_theme(self, theme, color=None, width=None):
+    #     """ Sets the default jquery-confirm theme and width (optional).
+    #     Available themes: "bootstrap", "modern", "material", "supervan",
+    #                       "light", "dark", and "seamless".
+    #     Available colors: (This sets the BORDER color, NOT the button color.)
+    #         "blue", "default", "green", "red", "purple", "orange", "dark".
+    #     Width can be set using percent or pixels. Eg: "36.0%", "450px".
+    #     """
+    #     if not self.__changed_jqc_theme:
+    #         self.__jqc_default_theme = constants.JqueryConfirm.DEFAULT_THEME
+    #         self.__jqc_default_color = constants.JqueryConfirm.DEFAULT_COLOR
+    #         self.__jqc_default_width = constants.JqueryConfirm.DEFAULT_WIDTH
+    #     valid_themes = [
+    #         "bootstrap",
+    #         "modern",
+    #         "material",
+    #         "supervan",
+    #         "light",
+    #         "dark",
+    #         "seamless",
+    #     ]
+    #     if theme.lower() not in valid_themes:
+    #         raise Exception(
+    #             "%s is not a valid jquery-confirm theme! "
+    #             "Select from %s" % (theme.lower(), valid_themes)
+    #         )
+    #     constants.JqueryConfirm.DEFAULT_THEME = theme.lower()
+    #     if color:
+    #         valid_colors = [
+    #             "blue",
+    #             "default",
+    #             "green",
+    #             "red",
+    #             "purple",
+    #             "orange",
+    #             "dark",
+    #         ]
+    #         if color.lower() not in valid_colors:
+    #             raise Exception(
+    #                 "%s is not a valid jquery-confirm border color! "
+    #                 "Select from %s" % (color.lower(), valid_colors)
+    #             )
+    #         constants.JqueryConfirm.DEFAULT_COLOR = color.lower()
+    #     if width:
+    #         if type(width) is int or type(width) is float:
+    #             # Convert to a string if a number is given
+    #             width = str(width)
+    #         if width.isnumeric():
+    #             if int(width) <= 0:
+    #                 raise Exception("Width must be set to a positive number!")
+    #             elif int(width) <= 100:
+    #                 width = str(width) + "%"
+    #             else:
+    #                 width = str(width) + "px"  # Use pixels if width is > 100
+    #         if not width.endswith("%") and not width.endswith("px"):
+    #             raise Exception(
+    #                 "jqc width must end with %% for percent or px for pixels!"
+    #             )
+    #         value = None
+    #         if width.endswith("%"):
+    #             value = width[:-1]
+    #         if width.endswith("px"):
+    #             value = width[:-2]
+    #         try:
+    #             value = float(value)
+    #         except Exception:
+    #             raise Exception("%s is not a numeric value!" % value)
+    #         if value <= 0:
+    #             raise Exception("%s is not a positive number!" % value)
+    #         constants.JqueryConfirm.DEFAULT_WIDTH = width
+    #
+    # def reset_jqc_theme(self):
+    #     """ Resets the jqc theme settings to factory defaults. """
+    #     if self.__changed_jqc_theme:
+    #         constants.JqueryConfirm.DEFAULT_THEME = self.__jqc_default_theme
+    #         constants.JqueryConfirm.DEFAULT_COLOR = self.__jqc_default_color
+    #         constants.JqueryConfirm.DEFAULT_WIDTH = self.__jqc_default_width
+    #         self.__changed_jqc_theme = False
+    #
+    # def get_jqc_button_input(self, message, buttons, options=None):
+    #     """
+    #     Pop up a jquery-confirm box and return the text of the button clicked.
+    #     If running in headless mode, the last button text is returned.
+    #     @Params
+    #     message: The message to display in the jquery-confirm dialog.
+    #     buttons: A list of tuples for text and color.
+    #         Example: [("Yes!", "green"), ("No!", "red")]
+    #         Available colors: blue, green, red, orange, purple, default, dark.
+    #         A simple text string also works: "My Button". (Uses default color.)
+    #     options: A list of tuples for options to set.
+    #         Example: [("theme", "bootstrap"), ("width", "450px")]
+    #         Available theme options: bootstrap, modern, material, supervan,
+    #                                  light, dark, and seamless.
+    #         Available colors: (For the BORDER color, NOT the button color.)
+    #             "blue", "default", "green", "red", "purple", "orange", "dark".
+    #         Example option for changing the border color: ("color", "default")
+    #         Width can be set using percent or pixels. Eg: "36.0%", "450px".
+    #     """
+    #     from seleniumbase.core import jqc_helper
+    #
+    #     if message and type(message) is not str:
+    #         raise Exception('Expecting a string for arg: "message"!')
+    #     if not type(buttons) is list and not type(buttons) is tuple:
+    #         raise Exception('Expecting a list or tuple for arg: "button"!')
+    #     if len(buttons) < 1:
+    #         raise Exception('List "buttons" requires at least one button!')
+    #     new_buttons = []
+    #     for button in buttons:
+    #         if (
+    #             (type(button) is list or type(button) is tuple)
+    #             and (len(button) == 1)
+    #         ):
+    #             new_buttons.append(button[0])
+    #         elif (
+    #             (type(button) is list or type(button) is tuple)
+    #             and (len(button) > 1)
+    #         ):
+    #             new_buttons.append((button[0], str(button[1]).lower()))
+    #         else:
+    #             new_buttons.append((str(button), ""))
+    #     buttons = new_buttons
+    #     if options:
+    #         for option in options:
+    #             if not type(option) is list and not type(option) is tuple:
+    #                 raise Exception('"options" should be a list of tuples!')
+    #     if self.headless or self.xvfb:
+    #         return buttons[-1][0]
+    #     jqc_helper.jquery_confirm_button_dialog(
+    #         self.driver, message, buttons, options
+    #     )
+    #     self.sleep(0.02)
+    #     jf = "document.querySelector('.jconfirm-box').focus();"
+    #     try:
+    #         self.execute_script(jf)
+    #     except Exception:
+    #         pass
+    #     waiting_for_response = True
+    #     while waiting_for_response:
+    #         self.sleep(0.05)
+    #         jqc_open = self.execute_script(
+    #             "return jconfirm.instances.length"
+    #         )
+    #         if str(jqc_open) == "0":
+    #             break
+    #     self.sleep(0.1)
+    #     status = None
+    #     try:
+    #         status = self.execute_script("return $jqc_status")
+    #     except Exception:
+    #         status = self.execute_script(
+    #             "return jconfirm.lastButtonText"
+    #         )
+    #     return status
+    #
+    # def get_jqc_text_input(self, message, button=None, options=None):
+    #     """
+    #     Pop up a jquery-confirm box and return the text submitted by the input.
+    #     If running in headless mode, the text returned is "" by default.
+    #     @Params
+    #     message: The message to display in the jquery-confirm dialog.
+    #     button: A 2-item list or tuple for text and color. Or just the text.
+    #         Example: ["Submit", "blue"] -> (default button if not specified)
+    #         Available colors: blue, green, red, orange, purple, default, dark.
+    #         A simple text string also works: "My Button". (Uses default color.)
+    #     options: A list of tuples for options to set.
+    #         Example: [("theme", "bootstrap"), ("width", "450px")]
+    #         Available theme options: bootstrap, modern, material, supervan,
+    #                                  light, dark, and seamless.
+    #         Available colors: (For the BORDER color, NOT the button color.)
+    #             "blue", "default", "green", "red", "purple", "orange", "dark".
+    #         Example option for changing the border color: ("color", "default")
+    #         Width can be set using percent or pixels. Eg: "36.0%", "450px".
+    #     """
+    #     from seleniumbase.core import jqc_helper
+    #
+    #     if message and type(message) is not str:
+    #         raise Exception('Expecting a string for arg: "message"!')
+    #     if button:
+    #         if (
+    #             (type(button) is list or type(button) is tuple)
+    #             and (len(button) == 1)
+    #         ):
+    #             button = (str(button[0]), "")
+    #         elif (
+    #             (type(button) is list or type(button) is tuple)
+    #             and (len(button) > 1)
+    #         ):
+    #             valid_colors = [
+    #                 "blue",
+    #                 "default",
+    #                 "green",
+    #                 "red",
+    #                 "purple",
+    #                 "orange",
+    #                 "dark",
+    #             ]
+    #             detected_color = str(button[1]).lower()
+    #             if str(button[1]).lower() not in valid_colors:
+    #                 raise Exception(
+    #                     "%s is an invalid jquery-confirm button color!\n"
+    #                     "Select from %s" % (detected_color, valid_colors)
+    #                 )
+    #             button = (str(button[0]), str(button[1]).lower())
+    #         else:
+    #             button = (str(button), "")
+    #     else:
+    #         button = ("Submit", "blue")
+    #
+    #     if options:
+    #         for option in options:
+    #             if not type(option) is list and not type(option) is tuple:
+    #                 raise Exception('"options" should be a list of tuples!')
+    #     if self.headless or self.xvfb:
+    #         return ""
+    #     jqc_helper.jquery_confirm_text_dialog(
+    #         self.driver, message, button, options
+    #     )
+    #     self.sleep(0.02)
+    #     jf = "document.querySelector('.jconfirm-box input.jqc_input').focus();"
+    #     try:
+    #         self.execute_script(jf)
+    #     except Exception:
+    #         pass
+    #     waiting_for_response = True
+    #     while waiting_for_response:
+    #         self.sleep(0.05)
+    #         jqc_open = self.execute_script(
+    #             "return jconfirm.instances.length"
+    #         )
+    #         if str(jqc_open) == "0":
+    #             break
+    #     self.sleep(0.1)
+    #     status = None
+    #     try:
+    #         status = self.execute_script("return $jqc_input")
+    #     except Exception:
+    #         status = self.execute_script(
+    #             "return jconfirm.lastInputText"
+    #         )
+    #     return status
+    #
+    # def get_jqc_form_inputs(self, message, buttons, options=None):
+    #     """
+    #     Pop up a jquery-confirm box and return the input/button texts as tuple.
+    #     If running in headless mode, returns the ("", buttons[-1][0]) tuple.
+    #     @Params
+    #     message: The message to display in the jquery-confirm dialog.
+    #     buttons: A list of tuples for text and color.
+    #         Example: [("Yes!", "green"), ("No!", "red")]
+    #         Available colors: blue, green, red, orange, purple, default, dark.
+    #         A simple text string also works: "My Button". (Uses default color.)
+    #     options: A list of tuples for options to set.
+    #         Example: [("theme", "bootstrap"), ("width", "450px")]
+    #         Available theme options: bootstrap, modern, material, supervan,
+    #                                  light, dark, and seamless.
+    #         Available colors: (For the BORDER color, NOT the button color.)
+    #             "blue", "default", "green", "red", "purple", "orange", "dark".
+    #         Example option for changing the border color: ("color", "default")
+    #         Width can be set using percent or pixels. Eg: "36.0%", "450px".
+    #     """
+    #     from seleniumbase.core import jqc_helper
+    #
+    #     if message and type(message) is not str:
+    #         raise Exception('Expecting a string for arg: "message"!')
+    #     if not type(buttons) is list and not type(buttons) is tuple:
+    #         raise Exception('Expecting a list or tuple for arg: "button"!')
+    #     if len(buttons) < 1:
+    #         raise Exception('List "buttons" requires at least one button!')
+    #     new_buttons = []
+    #     for button in buttons:
+    #         if (
+    #             (type(button) is list or type(button) is tuple)
+    #             and (len(button) == 1)
+    #         ):
+    #             new_buttons.append(button[0])
+    #         elif (
+    #             (type(button) is list or type(button) is tuple)
+    #             and (len(button) > 1)
+    #         ):
+    #             new_buttons.append((button[0], str(button[1]).lower()))
+    #         else:
+    #             new_buttons.append((str(button), ""))
+    #     buttons = new_buttons
+    #     if options:
+    #         for option in options:
+    #             if not type(option) is list and not type(option) is tuple:
+    #                 raise Exception('"options" should be a list of tuples!')
+    #     if self.headless or self.xvfb:
+    #         return ("", buttons[-1][0])
+    #     jqc_helper.jquery_confirm_full_dialog(
+    #         self.driver, message, buttons, options
+    #     )
+    #     self.sleep(0.02)
+    #     jf = "document.querySelector('.jconfirm-box input.jqc_input').focus();"
+    #     try:
+    #         self.execute_script(jf)
+    #     except Exception:
+    #         pass
+    #     waiting_for_response = True
+    #     while waiting_for_response:
+    #         self.sleep(0.05)
+    #         jqc_open = self.execute_script(
+    #             "return jconfirm.instances.length"
+    #         )
+    #         if str(jqc_open) == "0":
+    #             break
+    #     self.sleep(0.1)
+    #     text_status = None
+    #     button_status = None
+    #     try:
+    #         text_status = self.execute_script("return $jqc_input")
+    #         button_status = self.execute_script("return $jqc_status")
+    #     except Exception:
+    #         text_status = self.execute_script(
+    #             "return jconfirm.lastInputText"
+    #         )
+    #         button_status = self.execute_script(
+    #             "return jconfirm.lastButtonText"
+    #         )
+    #     return (text_status, button_status)
 
     ############
 
@@ -7004,346 +6917,346 @@ class WebDriverTest(WebDriverBaseTest):
             except Exception:
                 pass  # Only reachable during multi-threaded runs
 
-    def __process_dashboard(self, has_exception, init=False):
-        """ SeleniumBase Dashboard Processing """
-        if self._multithreaded:
-            existing_res = sb_config._results  # For recording "Skipped" tests
-            abs_path = os.path.abspath(".")
-            dash_json_loc = constants.Dashboard.DASH_JSON
-            dash_jsonpath = os.path.join(abs_path, dash_json_loc)
-            if not init and os.path.exists(dash_jsonpath):
-                with open(dash_jsonpath, "r") as f:
-                    dash_json = f.read().strip()
-                dash_data, d_id, dash_rt, tlp, d_stats = json.loads(dash_json)
-                num_passed, num_failed, num_skipped, num_untested = d_stats
-                sb_config._results = dash_data
-                sb_config._display_id = d_id
-                sb_config._duration = dash_rt  # Dashboard Run Time
-                sb_config._d_t_log_path = tlp  # Test Log Path
-                sb_config.item_count_passed = num_passed
-                sb_config.item_count_failed = num_failed
-                sb_config.item_count_skipped = num_skipped
-                sb_config.item_count_untested = num_untested
-        if len(sb_config._extra_dash_entries) > 0:
-            # First take care of existing entries from non-SeleniumBase tests
-            for test_id in sb_config._extra_dash_entries:
-                if test_id in sb_config._results.keys():
-                    if sb_config._results[test_id] == "Skipped":
-                        sb_config.item_count_skipped += 1
-                        sb_config.item_count_untested -= 1
-                    elif sb_config._results[test_id] == "Failed":
-                        sb_config.item_count_failed += 1
-                        sb_config.item_count_untested -= 1
-                    elif sb_config._results[test_id] == "Passed":
-                        sb_config.item_count_passed += 1
-                        sb_config.item_count_untested -= 1
-                    else:  # Mark "Skipped" if unknown
-                        sb_config.item_count_skipped += 1
-                        sb_config.item_count_untested -= 1
-            sb_config._extra_dash_entries = []  # Reset the list to empty
-        # Process new entries
-        log_dir = self.log_path
-        ft_id = self.__get_test_id()  # Full test id with path to log files
-        test_id = self.__get_test_id_2()  # The test id used by the DashBoard
-        dud = "seleniumbase/plugins/pytest_plugin.py::BaseClass::base_method"
-        dud2 = "pytest_plugin.BaseClass.base_method"
-        if hasattr(self, "_using_sb_fixture") and self.__will_be_skipped:
-            test_id = sb_config._test_id
-        if not init:
-            duration_ms = int(time.time() * 1000) - self.__start_time_ms
-            duration = float(duration_ms) / 1000.0
-            duration = "{:.2f}".format(duration)
-            sb_config._duration[test_id] = duration
-            if (
-                has_exception
-                or self.save_screenshot_after_test
-                or self.__screenshot_count > 0
-                or self.__will_be_skipped
-            ):
-                sb_config._d_t_log_path[test_id] = os.path.join(log_dir, ft_id)
-            else:
-                sb_config._d_t_log_path[test_id] = None
-            if test_id not in sb_config._display_id.keys():
-                sb_config._display_id[test_id] = self.__get_display_id()
-            if sb_config._display_id[test_id] == dud:
-                return
-            if (
-                hasattr(self, "_using_sb_fixture")
-                and test_id not in sb_config._results.keys()
-            ):
-                if test_id.count(".") > 1:
-                    alt_test_id = ".".join(test_id.split(".")[1:])
-                    if alt_test_id in sb_config._results.keys():
-                        sb_config._results.pop(alt_test_id)
-                elif test_id.count(".") == 1:
-                    alt_test_id = sb_config._display_id[test_id]
-                    alt_test_id = alt_test_id.replace(".py::", ".")
-                    alt_test_id = alt_test_id.replace("::", ".")
-                    if alt_test_id in sb_config._results.keys():
-                        sb_config._results.pop(alt_test_id)
-            if test_id in sb_config._results.keys() and (
-                sb_config._results[test_id] == "Skipped"
-            ):
-                if self.__passed_then_skipped:
-                    # Multiple calls of setUp() and tearDown() in the same test
-                    sb_config.item_count_passed -= 1
-                    sb_config.item_count_untested += 1
-                    self.__passed_then_skipped = False
-                sb_config._results[test_id] = "Skipped"
-                sb_config.item_count_skipped += 1
-                sb_config.item_count_untested -= 1
-            elif (
-                self._multithreaded
-                and test_id in existing_res.keys()
-                and existing_res[test_id] == "Skipped"
-            ):
-                sb_config._results[test_id] = "Skipped"
-                sb_config.item_count_skipped += 1
-                sb_config.item_count_untested -= 1
-            elif has_exception:
-                if test_id not in sb_config._results.keys():
-                    sb_config._results[test_id] = "Failed"
-                    sb_config.item_count_failed += 1
-                    sb_config.item_count_untested -= 1
-                elif not sb_config._results[test_id] == "Failed":
-                    # tearDown() was called more than once in the test
-                    if sb_config._results[test_id] == "Passed":
-                        # Passed earlier, but last run failed
-                        sb_config._results[test_id] = "Failed"
-                        sb_config.item_count_failed += 1
-                        sb_config.item_count_passed -= 1
-                    else:
-                        sb_config._results[test_id] = "Failed"
-                        sb_config.item_count_failed += 1
-                        sb_config.item_count_untested -= 1
-                else:
-                    # pytest-rerunfailures caused a duplicate failure
-                    sb_config._results[test_id] = "Failed"
-            else:
-                if (
-                    test_id in sb_config._results.keys()
-                    and sb_config._results[test_id] == "Failed"
-                ):
-                    # pytest-rerunfailures reran a test that failed
-                    sb_config._d_t_log_path[test_id] = os.path.join(
-                        log_dir, ft_id
-                    )
-                    sb_config.item_count_failed -= 1
-                    sb_config.item_count_untested += 1
-                elif (
-                    test_id in sb_config._results.keys()
-                    and sb_config._results[test_id] == "Passed"
-                ):
-                    # tearDown() was called more than once in the test
-                    sb_config.item_count_passed -= 1
-                    sb_config.item_count_untested += 1
-                sb_config._results[test_id] = "Passed"
-                sb_config.item_count_passed += 1
-                sb_config.item_count_untested -= 1
-        else:
-            pass  # Only initialize the Dashboard on the first processing
-        num_passed = sb_config.item_count_passed
-        num_failed = sb_config.item_count_failed
-        num_skipped = sb_config.item_count_skipped
-        num_untested = sb_config.item_count_untested
-        self.create_pie_chart(title=constants.Dashboard.TITLE)
-        self.add_data_point("Passed", num_passed, color="#84d474")
-        self.add_data_point("Untested", num_untested, color="#eaeaea")
-        self.add_data_point("Skipped", num_skipped, color="#efd8b4")
-        self.add_data_point("Failed", num_failed, color="#f17476")
-        style = (
-            '<link rel="stylesheet" charset="utf-8" '
-            'href="%s">' % constants.Dashboard.STYLE_CSS
-        )
-        auto_refresh_html = ""
-        if num_untested > 0:
-            # Refresh every X seconds when waiting for more test results
-            auto_refresh_html = constants.Dashboard.META_REFRESH_HTML
-        else:
-            # The tests are complete
-            if sb_config._using_html_report:
-                # Add the pie chart to the pytest html report
-                sb_config._saved_dashboard_pie = self.extract_chart()
-                if self._multithreaded:
-                    abs_path = os.path.abspath(".")
-                    dash_pie = json.dumps(sb_config._saved_dashboard_pie)
-                    dash_pie_loc = constants.Dashboard.DASH_PIE
-                    pie_path = os.path.join(abs_path, dash_pie_loc)
-                    pie_file = codecs.open(pie_path, "w+", encoding="utf-8")
-                    pie_file.writelines(dash_pie)
-                    pie_file.close()
-        head = (
-            '<head><meta charset="utf-8">'
-            '<meta name="viewport" content="shrink-to-fit=no">'
-            '<link rel="shortcut icon" href="%s">'
-            "%s"
-            "<title>Dashboard</title>"
-            "%s</head>"
-            % (constants.Dashboard.DASH_PIE_PNG_1, auto_refresh_html, style)
-        )
-        table_html = (
-            "<div></div>"
-            '<table border="1px solid #e6e6e6;" width="100%;" padding: 5px;'
-            ' font-size="12px;" text-align="left;" id="results-table">'
-            '<thead id="results-table-head">'
-            '<tr style="background-color: #F7F7FD;">'
-            '<th col="result">Result</th><th col="name">Test</th>'
-            '<th col="duration">Duration</th><th col="links">Links</th>'
-            "</tr></thead>"
-        )
-        the_failed = []
-        the_skipped = []
-        the_passed_hl = []  # Passed and has logs
-        the_passed_nl = []  # Passed and no logs
-        the_untested = []
-        if dud2 in sb_config._results.keys():
-            sb_config._results.pop(dud2)
-        for key in sb_config._results.keys():
-            t_res = sb_config._results[key]
-            t_dur = sb_config._duration[key]
-            t_d_id = sb_config._display_id[key]
-            t_l_path = sb_config._d_t_log_path[key]
-            res_low = t_res.lower()
-            if sb_config._results[key] == "Failed":
-                if not sb_config._d_t_log_path[key]:
-                    sb_config._d_t_log_path[key] = os.path.join(log_dir, ft_id)
-                the_failed.append([res_low, t_res, t_d_id, t_dur, t_l_path])
-            elif sb_config._results[key] == "Skipped":
-                the_skipped.append([res_low, t_res, t_d_id, t_dur, t_l_path])
-            elif sb_config._results[key] == "Passed" and t_l_path:
-                the_passed_hl.append([res_low, t_res, t_d_id, t_dur, t_l_path])
-            elif sb_config._results[key] == "Passed" and not t_l_path:
-                the_passed_nl.append([res_low, t_res, t_d_id, t_dur, t_l_path])
-            elif sb_config._results[key] == "Untested":
-                the_untested.append([res_low, t_res, t_d_id, t_dur, t_l_path])
-        for row in the_failed:
-            row = (
-                '<tbody class="%s results-table-row">'
-                '<tr style="background-color: #FFF8F8;">'
-                '<td class="col-result">%s</td><td>%s</td><td>%s</td>'
-                '<td><a href="%s">Logs</a> / <a href="%s/">Data</a>'
-                "</td></tr></tbody>"
-                "" % (row[0], row[1], row[2], row[3], log_dir, row[4])
-            )
-            table_html += row
-        for row in the_skipped:
-            if not row[4]:
-                row = (
-                    '<tbody class="%s results-table-row">'
-                    '<tr style="background-color: #FEFEF9;">'
-                    '<td class="col-result">%s</td><td>%s</td><td>%s</td>'
-                    "<td>-</td></tr></tbody>"
-                    % (row[0], row[1], row[2], row[3])
-                )
-            else:
-                row = (
-                    '<tbody class="%s results-table-row">'
-                    '<tr style="background-color: #FEFEF9;">'
-                    '<td class="col-result">%s</td><td>%s</td><td>%s</td>'
-                    '<td><a href="%s">Logs</a> / <a href="%s/">Data</a>'
-                    "</td></tr></tbody>"
-                    "" % (row[0], row[1], row[2], row[3], log_dir, row[4])
-                )
-            table_html += row
-        for row in the_passed_hl:
-            # Passed and has logs
-            row = (
-                '<tbody class="%s results-table-row">'
-                '<tr style="background-color: #F8FFF8;">'
-                '<td class="col-result">%s</td><td>%s</td><td>%s</td>'
-                '<td><a href="%s">Logs</a> / <a href="%s/">Data</a>'
-                "</td></tr></tbody>"
-                "" % (row[0], row[1], row[2], row[3], log_dir, row[4])
-            )
-            table_html += row
-        for row in the_passed_nl:
-            # Passed and no logs
-            row = (
-                '<tbody class="%s results-table-row">'
-                '<tr style="background-color: #F8FFF8;">'
-                '<td class="col-result">%s</td><td>%s</td><td>%s</td>'
-                "<td>-</td></tr></tbody>" % (row[0], row[1], row[2], row[3])
-            )
-            table_html += row
-        for row in the_untested:
-            row = (
-                '<tbody class="%s results-table-row"><tr>'
-                '<td class="col-result">%s</td><td>%s</td><td>%s</td>'
-                "<td>-</td></tr></tbody>" % (row[0], row[1], row[2], row[3])
-            )
-            table_html += row
-        table_html += "</table>"
-        add_more = "<br /><b>Last updated:</b> "
-        timestamp, the_date, the_time = log_helper.get_master_time()
-        last_updated = "%s at %s" % (the_date, the_time)
-        add_more = add_more + "%s" % last_updated
-        status = "<p></p><div><b>Status:</b> Awaiting results..."
-        status += " (Refresh the page for updates)"
-        if num_untested == 0:
-            status = "<p></p><div><b>Status:</b> Test Run Complete:"
-            if num_failed == 0:
-                if num_passed > 0:
-                    if num_skipped == 0:
-                        status += " <b>Success!</b> (All tests passed)"
-                    else:
-                        status += " <b>Success!</b> (No failing tests)"
-                else:
-                    status += " All tests were skipped!"
-            else:
-                latest_logs_dir = "latest_logs/"
-                log_msg = "See latest logs for details"
-                if num_failed == 1:
-                    status += (
-                        " <b>1 test failed!</b> --- "
-                        '(<b><a href="%s">%s</a></b>)'
-                        "" % (latest_logs_dir, log_msg)
-                    )
-                else:
-                    status += (
-                        " <b>%s tests failed!</b> --- "
-                        '(<b><a href="%s">%s</a></b>)'
-                        "" % (num_failed, latest_logs_dir, log_msg)
-                    )
-        status += "</div><p></p>"
-        add_more = add_more + status
-        gen_by = (
-            '<p><div>Generated by: <b><a href="https://seleniumbase.io/">'
-            "SeleniumBase</a></b></div></p><p></p>"
-        )
-        add_more = add_more + gen_by
-        # Have dashboard auto-refresh on updates when using an http server
-        refresh_line = (
-            '<script type="text/javascript" src="%s">'
-            "</script>" % constants.Dashboard.LIVE_JS
-        )
-        if num_untested == 0 and sb_config._using_html_report:
-            sb_config._dash_final_summary = status
-        add_more = add_more + refresh_line
-        the_html = (
-            '<html lang="en">'
-            + head
-            + self.extract_chart()
-            + table_html
-            + add_more
-        )
-        abs_path = os.path.abspath(".")
-        file_path = os.path.join(abs_path, "dashboard.html")
-        out_file = codecs.open(file_path, "w+", encoding="utf-8")
-        out_file.writelines(the_html)
-        out_file.close()
-        sb_config._dash_html = the_html
-        if self._multithreaded:
-            d_stats = (num_passed, num_failed, num_skipped, num_untested)
-            _results = sb_config._results
-            _display_id = sb_config._display_id
-            _rt = sb_config._duration  # Run Time (RT)
-            _tlp = sb_config._d_t_log_path  # Test Log Path (TLP)
-            dash_json = json.dumps((_results, _display_id, _rt, _tlp, d_stats))
-            dash_json_loc = constants.Dashboard.DASH_JSON
-            dash_jsonpath = os.path.join(abs_path, dash_json_loc)
-            dash_json_file = codecs.open(dash_jsonpath, "w+", encoding="utf-8")
-            dash_json_file.writelines(dash_json)
-            dash_json_file.close()
+    # def __process_dashboard(self, has_exception, init=False):
+    #     """ SeleniumBase Dashboard Processing """
+    #     if self._multithreaded:
+    #         existing_res = sb_config._results  # For recording "Skipped" tests
+    #         abs_path = os.path.abspath(".")
+    #         dash_json_loc = constants.Dashboard.DASH_JSON
+    #         dash_jsonpath = os.path.join(abs_path, dash_json_loc)
+    #         if not init and os.path.exists(dash_jsonpath):
+    #             with open(dash_jsonpath, "r") as f:
+    #                 dash_json = f.read().strip()
+    #             dash_data, d_id, dash_rt, tlp, d_stats = json.loads(dash_json)
+    #             num_passed, num_failed, num_skipped, num_untested = d_stats
+    #             sb_config._results = dash_data
+    #             sb_config._display_id = d_id
+    #             sb_config._duration = dash_rt  # Dashboard Run Time
+    #             sb_config._d_t_log_path = tlp  # Test Log Path
+    #             sb_config.item_count_passed = num_passed
+    #             sb_config.item_count_failed = num_failed
+    #             sb_config.item_count_skipped = num_skipped
+    #             sb_config.item_count_untested = num_untested
+    #     if len(sb_config._extra_dash_entries) > 0:
+    #         # First take care of existing entries from non-SeleniumBase tests
+    #         for test_id in sb_config._extra_dash_entries:
+    #             if test_id in sb_config._results.keys():
+    #                 if sb_config._results[test_id] == "Skipped":
+    #                     sb_config.item_count_skipped += 1
+    #                     sb_config.item_count_untested -= 1
+    #                 elif sb_config._results[test_id] == "Failed":
+    #                     sb_config.item_count_failed += 1
+    #                     sb_config.item_count_untested -= 1
+    #                 elif sb_config._results[test_id] == "Passed":
+    #                     sb_config.item_count_passed += 1
+    #                     sb_config.item_count_untested -= 1
+    #                 else:  # Mark "Skipped" if unknown
+    #                     sb_config.item_count_skipped += 1
+    #                     sb_config.item_count_untested -= 1
+    #         sb_config._extra_dash_entries = []  # Reset the list to empty
+    #     # Process new entries
+    #     log_dir = self.log_path
+    #     ft_id = self.__get_test_id()  # Full test id with path to log files
+    #     test_id = self.__get_test_id_2()  # The test id used by the DashBoard
+    #     dud = "seleniumbase/plugins/pytest_plugin.py::BaseClass::base_method"
+    #     dud2 = "pytest_plugin.BaseClass.base_method"
+    #     if hasattr(self, "_using_sb_fixture") and self.__will_be_skipped:
+    #         test_id = sb_config._test_id
+    #     if not init:
+    #         duration_ms = int(time.time() * 1000) - self.__start_time_ms
+    #         duration = float(duration_ms) / 1000.0
+    #         duration = "{:.2f}".format(duration)
+    #         sb_config._duration[test_id] = duration
+    #         if (
+    #             has_exception
+    #             or self.save_screenshot_after_test
+    #             or self.__screenshot_count > 0
+    #             or self.__will_be_skipped
+    #         ):
+    #             sb_config._d_t_log_path[test_id] = os.path.join(log_dir, ft_id)
+    #         else:
+    #             sb_config._d_t_log_path[test_id] = None
+    #         if test_id not in sb_config._display_id.keys():
+    #             sb_config._display_id[test_id] = self.__get_display_id()
+    #         if sb_config._display_id[test_id] == dud:
+    #             return
+    #         if (
+    #             hasattr(self, "_using_sb_fixture")
+    #             and test_id not in sb_config._results.keys()
+    #         ):
+    #             if test_id.count(".") > 1:
+    #                 alt_test_id = ".".join(test_id.split(".")[1:])
+    #                 if alt_test_id in sb_config._results.keys():
+    #                     sb_config._results.pop(alt_test_id)
+    #             elif test_id.count(".") == 1:
+    #                 alt_test_id = sb_config._display_id[test_id]
+    #                 alt_test_id = alt_test_id.replace(".py::", ".")
+    #                 alt_test_id = alt_test_id.replace("::", ".")
+    #                 if alt_test_id in sb_config._results.keys():
+    #                     sb_config._results.pop(alt_test_id)
+    #         if test_id in sb_config._results.keys() and (
+    #             sb_config._results[test_id] == "Skipped"
+    #         ):
+    #             if self.__passed_then_skipped:
+    #                 # Multiple calls of setUp() and tearDown() in the same test
+    #                 sb_config.item_count_passed -= 1
+    #                 sb_config.item_count_untested += 1
+    #                 self.__passed_then_skipped = False
+    #             sb_config._results[test_id] = "Skipped"
+    #             sb_config.item_count_skipped += 1
+    #             sb_config.item_count_untested -= 1
+    #         elif (
+    #             self._multithreaded
+    #             and test_id in existing_res.keys()
+    #             and existing_res[test_id] == "Skipped"
+    #         ):
+    #             sb_config._results[test_id] = "Skipped"
+    #             sb_config.item_count_skipped += 1
+    #             sb_config.item_count_untested -= 1
+    #         elif has_exception:
+    #             if test_id not in sb_config._results.keys():
+    #                 sb_config._results[test_id] = "Failed"
+    #                 sb_config.item_count_failed += 1
+    #                 sb_config.item_count_untested -= 1
+    #             elif not sb_config._results[test_id] == "Failed":
+    #                 # tearDown() was called more than once in the test
+    #                 if sb_config._results[test_id] == "Passed":
+    #                     # Passed earlier, but last run failed
+    #                     sb_config._results[test_id] = "Failed"
+    #                     sb_config.item_count_failed += 1
+    #                     sb_config.item_count_passed -= 1
+    #                 else:
+    #                     sb_config._results[test_id] = "Failed"
+    #                     sb_config.item_count_failed += 1
+    #                     sb_config.item_count_untested -= 1
+    #             else:
+    #                 # pytest-rerunfailures caused a duplicate failure
+    #                 sb_config._results[test_id] = "Failed"
+    #         else:
+    #             if (
+    #                 test_id in sb_config._results.keys()
+    #                 and sb_config._results[test_id] == "Failed"
+    #             ):
+    #                 # pytest-rerunfailures reran a test that failed
+    #                 sb_config._d_t_log_path[test_id] = os.path.join(
+    #                     log_dir, ft_id
+    #                 )
+    #                 sb_config.item_count_failed -= 1
+    #                 sb_config.item_count_untested += 1
+    #             elif (
+    #                 test_id in sb_config._results.keys()
+    #                 and sb_config._results[test_id] == "Passed"
+    #             ):
+    #                 # tearDown() was called more than once in the test
+    #                 sb_config.item_count_passed -= 1
+    #                 sb_config.item_count_untested += 1
+    #             sb_config._results[test_id] = "Passed"
+    #             sb_config.item_count_passed += 1
+    #             sb_config.item_count_untested -= 1
+    #     else:
+    #         pass  # Only initialize the Dashboard on the first processing
+    #     num_passed = sb_config.item_count_passed
+    #     num_failed = sb_config.item_count_failed
+    #     num_skipped = sb_config.item_count_skipped
+    #     num_untested = sb_config.item_count_untested
+    #     self.create_pie_chart(title=constants.Dashboard.TITLE)
+    #     self.add_data_point("Passed", num_passed, color="#84d474")
+    #     self.add_data_point("Untested", num_untested, color="#eaeaea")
+    #     self.add_data_point("Skipped", num_skipped, color="#efd8b4")
+    #     self.add_data_point("Failed", num_failed, color="#f17476")
+    #     style = (
+    #         '<link rel="stylesheet" charset="utf-8" '
+    #         'href="%s">' % constants.Dashboard.STYLE_CSS
+    #     )
+    #     auto_refresh_html = ""
+    #     if num_untested > 0:
+    #         # Refresh every X seconds when waiting for more test results
+    #         auto_refresh_html = constants.Dashboard.META_REFRESH_HTML
+    #     else:
+    #         # The tests are complete
+    #         if sb_config._using_html_report:
+    #             # Add the pie chart to the pytest html report
+    #             sb_config._saved_dashboard_pie = self.extract_chart()
+    #             if self._multithreaded:
+    #                 abs_path = os.path.abspath(".")
+    #                 dash_pie = json.dumps(sb_config._saved_dashboard_pie)
+    #                 dash_pie_loc = constants.Dashboard.DASH_PIE
+    #                 pie_path = os.path.join(abs_path, dash_pie_loc)
+    #                 pie_file = codecs.open(pie_path, "w+", encoding="utf-8")
+    #                 pie_file.writelines(dash_pie)
+    #                 pie_file.close()
+    #     head = (
+    #         '<head><meta charset="utf-8">'
+    #         '<meta name="viewport" content="shrink-to-fit=no">'
+    #         '<link rel="shortcut icon" href="%s">'
+    #         "%s"
+    #         "<title>Dashboard</title>"
+    #         "%s</head>"
+    #         % (constants.Dashboard.DASH_PIE_PNG_1, auto_refresh_html, style)
+    #     )
+    #     table_html = (
+    #         "<div></div>"
+    #         '<table border="1px solid #e6e6e6;" width="100%;" padding: 5px;'
+    #         ' font-size="12px;" text-align="left;" id="results-table">'
+    #         '<thead id="results-table-head">'
+    #         '<tr style="background-color: #F7F7FD;">'
+    #         '<th col="result">Result</th><th col="name">Test</th>'
+    #         '<th col="duration">Duration</th><th col="links">Links</th>'
+    #         "</tr></thead>"
+    #     )
+    #     the_failed = []
+    #     the_skipped = []
+    #     the_passed_hl = []  # Passed and has logs
+    #     the_passed_nl = []  # Passed and no logs
+    #     the_untested = []
+    #     if dud2 in sb_config._results.keys():
+    #         sb_config._results.pop(dud2)
+    #     for key in sb_config._results.keys():
+    #         t_res = sb_config._results[key]
+    #         t_dur = sb_config._duration[key]
+    #         t_d_id = sb_config._display_id[key]
+    #         t_l_path = sb_config._d_t_log_path[key]
+    #         res_low = t_res.lower()
+    #         if sb_config._results[key] == "Failed":
+    #             if not sb_config._d_t_log_path[key]:
+    #                 sb_config._d_t_log_path[key] = os.path.join(log_dir, ft_id)
+    #             the_failed.append([res_low, t_res, t_d_id, t_dur, t_l_path])
+    #         elif sb_config._results[key] == "Skipped":
+    #             the_skipped.append([res_low, t_res, t_d_id, t_dur, t_l_path])
+    #         elif sb_config._results[key] == "Passed" and t_l_path:
+    #             the_passed_hl.append([res_low, t_res, t_d_id, t_dur, t_l_path])
+    #         elif sb_config._results[key] == "Passed" and not t_l_path:
+    #             the_passed_nl.append([res_low, t_res, t_d_id, t_dur, t_l_path])
+    #         elif sb_config._results[key] == "Untested":
+    #             the_untested.append([res_low, t_res, t_d_id, t_dur, t_l_path])
+    #     for row in the_failed:
+    #         row = (
+    #             '<tbody class="%s results-table-row">'
+    #             '<tr style="background-color: #FFF8F8;">'
+    #             '<td class="col-result">%s</td><td>%s</td><td>%s</td>'
+    #             '<td><a href="%s">Logs</a> / <a href="%s/">Data</a>'
+    #             "</td></tr></tbody>"
+    #             "" % (row[0], row[1], row[2], row[3], log_dir, row[4])
+    #         )
+    #         table_html += row
+    #     for row in the_skipped:
+    #         if not row[4]:
+    #             row = (
+    #                 '<tbody class="%s results-table-row">'
+    #                 '<tr style="background-color: #FEFEF9;">'
+    #                 '<td class="col-result">%s</td><td>%s</td><td>%s</td>'
+    #                 "<td>-</td></tr></tbody>"
+    #                 % (row[0], row[1], row[2], row[3])
+    #             )
+    #         else:
+    #             row = (
+    #                 '<tbody class="%s results-table-row">'
+    #                 '<tr style="background-color: #FEFEF9;">'
+    #                 '<td class="col-result">%s</td><td>%s</td><td>%s</td>'
+    #                 '<td><a href="%s">Logs</a> / <a href="%s/">Data</a>'
+    #                 "</td></tr></tbody>"
+    #                 "" % (row[0], row[1], row[2], row[3], log_dir, row[4])
+    #             )
+    #         table_html += row
+    #     for row in the_passed_hl:
+    #         # Passed and has logs
+    #         row = (
+    #             '<tbody class="%s results-table-row">'
+    #             '<tr style="background-color: #F8FFF8;">'
+    #             '<td class="col-result">%s</td><td>%s</td><td>%s</td>'
+    #             '<td><a href="%s">Logs</a> / <a href="%s/">Data</a>'
+    #             "</td></tr></tbody>"
+    #             "" % (row[0], row[1], row[2], row[3], log_dir, row[4])
+    #         )
+    #         table_html += row
+    #     for row in the_passed_nl:
+    #         # Passed and no logs
+    #         row = (
+    #             '<tbody class="%s results-table-row">'
+    #             '<tr style="background-color: #F8FFF8;">'
+    #             '<td class="col-result">%s</td><td>%s</td><td>%s</td>'
+    #             "<td>-</td></tr></tbody>" % (row[0], row[1], row[2], row[3])
+    #         )
+    #         table_html += row
+    #     for row in the_untested:
+    #         row = (
+    #             '<tbody class="%s results-table-row"><tr>'
+    #             '<td class="col-result">%s</td><td>%s</td><td>%s</td>'
+    #             "<td>-</td></tr></tbody>" % (row[0], row[1], row[2], row[3])
+    #         )
+    #         table_html += row
+    #     table_html += "</table>"
+    #     add_more = "<br /><b>Last updated:</b> "
+    #     timestamp, the_date, the_time = log_helper.get_master_time()
+    #     last_updated = "%s at %s" % (the_date, the_time)
+    #     add_more = add_more + "%s" % last_updated
+    #     status = "<p></p><div><b>Status:</b> Awaiting results..."
+    #     status += " (Refresh the page for updates)"
+    #     if num_untested == 0:
+    #         status = "<p></p><div><b>Status:</b> Test Run Complete:"
+    #         if num_failed == 0:
+    #             if num_passed > 0:
+    #                 if num_skipped == 0:
+    #                     status += " <b>Success!</b> (All tests passed)"
+    #                 else:
+    #                     status += " <b>Success!</b> (No failing tests)"
+    #             else:
+    #                 status += " All tests were skipped!"
+    #         else:
+    #             latest_logs_dir = "latest_logs/"
+    #             log_msg = "See latest logs for details"
+    #             if num_failed == 1:
+    #                 status += (
+    #                     " <b>1 test failed!</b> --- "
+    #                     '(<b><a href="%s">%s</a></b>)'
+    #                     "" % (latest_logs_dir, log_msg)
+    #                 )
+    #             else:
+    #                 status += (
+    #                     " <b>%s tests failed!</b> --- "
+    #                     '(<b><a href="%s">%s</a></b>)'
+    #                     "" % (num_failed, latest_logs_dir, log_msg)
+    #                 )
+    #     status += "</div><p></p>"
+    #     add_more = add_more + status
+    #     gen_by = (
+    #         '<p><div>Generated by: <b><a href="https://seleniumbase.io/">'
+    #         "SeleniumBase</a></b></div></p><p></p>"
+    #     )
+    #     add_more = add_more + gen_by
+    #     # Have dashboard auto-refresh on updates when using an http server
+    #     refresh_line = (
+    #         '<script type="text/javascript" src="%s">'
+    #         "</script>" % constants.Dashboard.LIVE_JS
+    #     )
+    #     if num_untested == 0 and sb_config._using_html_report:
+    #         sb_config._dash_final_summary = status
+    #     add_more = add_more + refresh_line
+    #     the_html = (
+    #         '<html lang="en">'
+    #         + head
+    #         + self.extract_chart()
+    #         + table_html
+    #         + add_more
+    #     )
+    #     abs_path = os.path.abspath(".")
+    #     file_path = os.path.join(abs_path, "dashboard.html")
+    #     out_file = codecs.open(file_path, "w+", encoding="utf-8")
+    #     out_file.writelines(the_html)
+    #     out_file.close()
+    #     sb_config._dash_html = the_html
+    #     if self._multithreaded:
+    #         d_stats = (num_passed, num_failed, num_skipped, num_untested)
+    #         _results = sb_config._results
+    #         _display_id = sb_config._display_id
+    #         _rt = sb_config._duration  # Run Time (RT)
+    #         _tlp = sb_config._d_t_log_path  # Test Log Path (TLP)
+    #         dash_json = json.dumps((_results, _display_id, _rt, _tlp, d_stats))
+    #         dash_json_loc = constants.Dashboard.DASH_JSON
+    #         dash_jsonpath = os.path.join(abs_path, dash_json_loc)
+    #         dash_json_file = codecs.open(dash_jsonpath, "w+", encoding="utf-8")
+    #         dash_json_file.writelines(dash_json)
+    #         dash_json_file.close()
 
     def has_exception(self):
         """(This method should ONLY be used in custom tearDown() methods.)
